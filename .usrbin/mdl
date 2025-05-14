@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Check if an argument (input file) is provided
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <input_file>"
+    exit 1
+fi
+
+input_file="$1"
+
+# Check if the input file exists
+if [ ! -f "$input_file" ]; then
+    echo "File '$input_file' not found!"
+    exit 1
+fi
+
+# Extract the file name without the extension and the extension itself
+filename=$(basename -- "$input_file")
+extension="${filename##*.}"
+filename_without_extension="${filename%.*}"
+
+# Create the new filename by appending 'mdl' before the extension
+new_filename="${filename_without_extension}mdl.${extension}"
+
+# Use sed to replace ![[filename]] with ![filename](filename) and write to the new file
+sed -E 's/!\[\[(.*?)\]\]/!\[\1\](\1)/g' "$input_file" > "$new_filename"
+
+echo "Converted content saved to '$new_filename'"
+

@@ -1,0 +1,1 @@
+pdfrenamer ./ -f {YYYY}{Aetal}{T} -case camel -max_length_filename 70

@@ -1,0 +1,43 @@
+#!/bin/bash
+
+function generate_links() {
+  local target_dir="$1"
+  local output_file="$2"
+  local files=()
+
+  while IFS= read -r -d $'\0' file; do
+    filename=$(basename "$file")
+    files+=("$filename")
+  done < <(find "$target_dir" -type f -name "*.md" -print0)
+
+  sorted_files=($(printf '%s\n' "${files[@]}" | sort))
+
+  echo -n > "$output_file"
+
+  for file in "${sorted_files[@]}"; do
+    echo "![[${file}]]" >> "$output_file"
+  done
+}
+
+if [ $# -ne 1 ]; then
+  echo "Usage: col.sh [--all | --dir]"
+  exit 1
+fi
+
+case "$1" in
+  --all)
+    echo -n "Enter the filename for the output markdown file: "
+    read -r output_filename
+    generate_links "." "$output_filename"
+    ;;
+  --dir)
+    echo -n "Enter the filename for the output markdown file: "
+    read -r output_filename
+    generate_links "." "$output_filename"
+    ;;
+  *)
+    echo "Invalid option. Usage: col.sh [--all | --dir]"
+    exit 1
+    ;;
+esac
+

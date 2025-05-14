@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Function to resolve the input file path
+resolve_input_file() {
+    local input_file="$1"
+
+    # Check if the input file is a full path
+    if [[ "$input_file" == /* ]]; then
+        # Full path provided
+        if [ -f "$input_file" ]; then
+            echo "$input_file"
+        else
+            echo "Input file not found: ${input_file}"
+            exit 1
+        fi
+    else
+        # Search for the input file in the current directory and its subdirectories
+        local input_file_path=""
+        input_file_path="$(find . -wholename "*${input_file}.md" -type f -print -quit)"
+
+        if [ -z "$input_file_path" ]; then
+            # If not found with .md extension, search without the extension
+            input_file_path="$(find . -wholename "*${input_file}" -type f -print -quit)"
+        fi
+
+        if [ -f "$input_file_path" ]; then
+            echo "$input_file_path"
+        else
+            echo "Input file not found: ${input_file}"
+            exit 1
+        fi
+    fi
+}
+
+# Function to process a linked file and replace the link in the merged file with its content
+process_linked_file() {
+    local linked_file="$1"
+    local linked_file_path=""
+    local linked_file_content=""
+
+    # Check if linked file exists with the .md extension
+    linked_file_path="$(find "$main_dir" -wholename "*${linked_file}" -type f -print -quit)"
+
+    if [ -z "$linked_file_path" ]; then
+        # If not found, check if linked file exists without the .md extension
+        linked_file_path="$(find "$main_dir" -wholename "*${linked_file}.md" -type f -print -quit)"
+    fi
+
+    if [ -f "$linked_file_path" ]; then
+        # Read the content of the linked file
+        linked_file_content=$(<"$linked_file_path")
+
+        # Replace the link (including the leading exclamation mark) with the content of the linked file
+        awk -v link="$linked_file" -v content="${linked_file_content//\\/\\\\}" \
+            '{gsub("!\\[\\[" link "\\]\\]", content)}1' "$merged_file" > "$merged_file.tmp"
+
+        mv "$merged_file.tmp" "$merged_file"
+
+        # Process nested linked files in the content of the linked file
+        process_nested_linked_files "$linked_file_content"
+    else
+        echo "Linked file not found: ${linked_file}"
+    fi
+}
+
+# Function to process nested linked files in the content
+process_nested_linked_files() {
+    local content="$1"
+
+    # Find all linked file references in the content
+    local linked_files=$(grep -oP '\!\[\[[^\]]+\]\]' <<< "$content" | sed 's/\!\[\[//' | sed 's/\]\]//')
+
+    for linked_file in $linked_files; do
+        # Check if the linked file has already been processed to break the recursion
+        if ! grep -qF "[$linked_file]" "$merged_file"; then
+            process_linked_file "$linked_file"
+        fi
+    done
+}
+
+# Resolve the input file path
+main_file="$1"
+main_file_path=$(resolve_input_file "$main_file")
+
+# Get the directory and filename of the main file
+main_dir=$(dirname "$main_file_path")
+main_filename=$(basename "$main_file_path" ".md")
+
+# Create the new merged file
+merged_file="${main_dir}/${main_filename}mrg.md"
+
+cp "$main_file_path" "$merged_file"
+
+# Process linked files in the main file
+linked_files=$(grep -oP '\!\[\[[^\]]+\]\]' "$main_file_path" | sed 's/\!\[\[//' | sed 's/\]\]//')
+
+for linked_file in $linked_files; do
+    process_linked_file "$linked_file"
+done
+
+echo "Merged file created: ${merged_file}"
+

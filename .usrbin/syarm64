@@ -1,0 +1,10 @@
+#!/bin/bash
+
+origin="/data/data/com.termux/files/home/arm64workbench/"
+destination="/data/data/com.termux/files/home/storage/shared/000/dev/arm64workbench/"
+
+while true; do
+    rsync -av --delete "$origin" "$destination"
+    echo "Changes synchronized."
+    sleep 120  # sleep interval = 120 seconds
+done

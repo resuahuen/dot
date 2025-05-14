@@ -1,0 +1,12 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =4
+let g:netrw_dirhist_4='/data/data/com.termux/files/home/.shortcuts'
+let g:netrw_dirhist_3='/data/data/com.termux/files/home/md2apkg/src'
+let g:netrw_dirhist_2='/storage/emulated/0/000/eth/007sem/fac/lec/test.json'
+let g:netrw_dirhist_1='/data/data/com.termux/files/home/test/test.m'
+let g:netrw_dirhist_0='/storage/emulated/0/Download/Materialien_SEM/Materialien/2'
+let g:netrw_dirhist_9='/data/data/com.termux/files/home'
+let g:netrw_dirhist_8='/data/data/com.termux/files/home/debian'
+let g:netrw_dirhist_7='/data/data/com.termux/files/home/alpineVMqemu'
+let g:netrw_dirhist_6='/data/data/com.termux/files/home/cmake-python-distributions'
+let g:netrw_dirhist_5='/data/data/com.termux/files/home/opencv/cmake'

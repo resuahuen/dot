@@ -1,0 +1,3 @@
+#!/bin/bash
+rclone sync /sdcard/000/knb/ gdrive:knb/ -v
+sleep 16

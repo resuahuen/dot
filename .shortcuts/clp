@@ -1,0 +1,11 @@
+#!/bin/bash
+
+FILE="/sdcard/clp.txt"
+
+while inotifywait -e modify "$FILE"; do
+    # Set Android clipboard when the file is modified
+    cat "$FILE" | termux-clipboard-set
+    echo "File changed. Command executed."
+    # Clear the contents of clp.txt
+    : > "$FILE"
+done
