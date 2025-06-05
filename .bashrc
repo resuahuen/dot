@@ -1,7 +1,7 @@
 # these paths are checked after the path variable
 # ~/.usrbin    contains all binaries compiled for termux
 # ~/.shortcuts    contains all binaries which are made available through the termux widget
-export PATH=$PATH:~/.usrbin:~/.shortcuts
+export PATH=$PATH:~/.usrbin:~/.shortcuts:~/.usrbin/md2apkg:
 # run automatically when starting the app
 #bash $HOME/.shortcuts/clp
 # quick selection of often used directories
