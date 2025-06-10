@@ -1,8 +1,0 @@
-#!/bin/bash
-
-# Define origin and destination paths
-origin="/data/data/com.termux/files/home/arm64workbench/"
-destination="/data/data/com.termux/files/home/storage/shared/000/dev/arm64workbench/"
-
-# Use rsync to copy only the changes from origin to destination
-rsync -av --delete "$origin" "$destination"
