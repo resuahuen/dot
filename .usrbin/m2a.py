@@ -35,21 +35,21 @@ def replace_images_with_anki(md, media_files):
         return f'<img src="{filename}">'
     return re.sub(r'!\[.*?\]\((.*?)\)', repl, md)
 
-def parse_cards(md):
-    cards = []
-    for block in md.split('#kk'):
-        block = block.strip()
-        if not block:
-            continue
-        # Find first % (front/back split) and last % (back end)
-        first_percent = block.find('%')
-        last_percent = block.rfind('%')
-        if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
-            continue  # skip if not both delimiters present
-        front = block[:first_percent].strip()
-        back = block[first_percent+1:last_percent].strip()
-        cards.append((front, back))
-    return cards
+# def parse_cards(md):
+#     cards = []
+#     for block in md.split('#kk'):
+#         block = block.strip()
+#         if not block:
+#             continue
+#         # Find first % (front/back split) and last % (back end)
+#         first_percent = block.find('%')
+#         last_percent = block.rfind('%')
+#         if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
+#             continue  # skip if not both delimiters present
+#         front = block[:first_percent].strip()
+#         back = block[first_percent+1:last_percent].strip()
+#         cards.append((front, back))
+#     return cards
 
 # def parse_cards(md):
 #     cards = []
@@ -70,6 +70,25 @@ def parse_cards(md):
 #         if front and back:
 #             cards.append((front, back))
 #     return cards
+
+
+def parse_cards(md):
+    cards = []
+    for block in md.split('#kk'):
+        block = block.strip()
+        if not block:
+            continue
+        # Split on first '%' delimiter, inline or on its own line
+        parts = re.split(r'\s*%\s*', block, maxsplit=1)
+        if len(parts) < 2:
+            continue
+        front = parts[0].strip()
+        back = parts[1].strip()
+        # Remove all trailing '%' and whitespace from back
+        back = re.sub(r'[%\s]+$', '', back)
+        if front and back:
+            cards.append((front, back))
+    return cards
 
 def main(md_path, output_apkg, verbose=False):
     if verbose:
