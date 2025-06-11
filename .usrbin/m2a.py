@@ -94,17 +94,16 @@ def parse_cards(md):
         block = block.strip()
         if not block:
             continue
-        # Find all '%' positions, regardless of line or whitespace
-        percent_matches = list(re.finditer(r'%', block, flags=re.DOTALL))
-        if len(percent_matches) < 2:
+        # Split on lines containing only '%'
+        parts = re.split(r'^\s*%\s*$', block, flags=re.MULTILINE)
+        if len(parts) < 2:
             continue  # skip if not both delimiters present
-        first_percent = percent_matches[0].start()
-        last_percent = percent_matches[-1].start()
-        front = block[:first_percent].strip()
-        back = block[first_percent+1:last_percent].strip()
+        front = parts[0].strip()
+        back = parts[1].strip()
         if front and back:
             cards.append((front, back))
     return cards
+
 
 def main(md_path, output_apkg, verbose=False):
     if verbose:
