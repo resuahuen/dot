@@ -4,10 +4,6 @@
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 anx_js_path="$script_dir/anx.js"
 
-# Create a local temp directory for processing
-local_tmp_dir="$HOME/anx_tmp"
-mkdir -p "$local_tmp_dir"
-
 # Function to process a single PDF page
 process_pdf_page() {
     local pdf_file="$1"
@@ -158,14 +154,10 @@ image_output_path="${image_output_path:-./img/}"
 # Process each PDF file
 for pdf_file in $pdf_files; do
     if [ -f "$pdf_file" ]; then
-        # Copy PDF to local temp directory
-        local_pdf="$local_tmp_dir/$(basename "$pdf_file")"
-        cp "$pdf_file" "$local_pdf"
-
         # Get the number of pages using pdfinfo
-        num_pages=$(pdfinfo "$local_pdf" | grep "Pages" | awk '{print $2}')
+        num_pages=$(pdfinfo "$pdf_file" | grep "Pages" | awk '{print $2}')
 
-        # Define the Markdown output path for this PDF file (in original location)
+        # Define the Markdown output path for this PDF file
         markdown_output_path="${pdf_file%.pdf}.md"
         
         # Prompt the user to overwrite the markdown file if it exists
@@ -176,12 +168,9 @@ for pdf_file in $pdf_files; do
             # Generate a unique image output path for each page
             page_image_output_path="${image_output_path}/$(basename "$pdf_file" .pdf)_page_${page}"
 
-            # Process the single page (use local_pdf)
-            process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$markdown_output_path"
+            # Process the single page
+            process_pdf_page "$pdf_file" "$page" "$page_image_output_path" "$image_format" "$markdown_output_path"
         done
-
-        # Clean up local copy
-        rm "$local_pdf"
     else
         echo "Error: $pdf_file is not a valid file."
     fi
