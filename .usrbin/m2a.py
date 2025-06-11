@@ -76,18 +76,18 @@ def parse_cards(md):
         block = block.strip()
         if not block:
             continue
-        # Find all lines that are just a %
-        percent_lines = [m.start() for m in re.finditer(r'^\s*%\s*$', block, flags=re.MULTILINE)]
-        if len(percent_lines) < 2:
+        lines = block.splitlines()
+        # Find all lines that are just '%'
+        percent_indices = [i for i, line in enumerate(lines) if line.strip() == '%']
+        if len(percent_indices) < 2:
             continue  # skip if not both delimiters present
-        first_percent = percent_lines[0]
-        last_percent = percent_lines[-1]
-        front = block[:first_percent].strip()
-        back = block[first_percent:last_percent].replace('%', '').strip()
+        first_percent = percent_indices[0]
+        last_percent = percent_indices[-1]
+        front = '\n'.join(lines[:first_percent]).strip()
+        back = '\n'.join(lines[first_percent+1:last_percent]).strip()
         if front and back:
             cards.append((front, back))
     return cards
-
 def main(md_path, output_apkg, verbose=False):
     if verbose:
         print(f"Reading markdown file: {md_path}")
