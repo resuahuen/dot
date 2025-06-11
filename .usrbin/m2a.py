@@ -53,22 +53,23 @@ def replace_images_with_anki(md, media_files):
 
 def parse_cards(md):
     cards = []
-    for block in md.split('#kk'):
+    # Split on #kk, but keep the delimiter for easier parsing
+    blocks = re.split(r'(?=^#kk)', md, flags=re.MULTILINE)
+    for block in blocks:
         block = block.strip()
-        if not block:
+        if not block.startswith('#kk'):
             continue
-        # Find all % delimiters
-        percents = [i for i, c in enumerate(block) if c == '%']
+        # Remove the #kk marker
+        content = block[3:].strip()
+        # Find all % positions
+        percents = [m.start() for m in re.finditer(r'^%$', content, flags=re.MULTILINE)]
         if len(percents) < 2:
-            continue  # skip if not at least two % delimiters
-        first_percent = percents[0]
-        last_percent = percents[-1]
-        front = block[:first_percent].strip()
-        back = block[first_percent+1:last_percent].strip()
-        # Only add card if both front and back are non-empty
+            continue  # Need at least two % lines
+        # Extract front and back using the positions of the first two %
+        front = content[:percents[0]].strip()
+        back = content[percents[0]+1:percents[1]].strip()
         if front and back:
             cards.append((front, back))
-        # else: skip defective card and continue
     return cards
 
 def main(md_path, output_apkg, verbose=False):
