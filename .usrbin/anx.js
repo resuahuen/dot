@@ -38,7 +38,6 @@ function removeUnicodeCharacters(input) {
 }
 
 // Function to process the annotation text
-// Function to process the annotation text
 function processAnnotationText(annotation, pageNumber, pdfFilePath) {
   let text = '';
 
@@ -108,8 +107,6 @@ annotations.forEach(annotation => {
       markdownContent += textAnnotation;
       break;
     case 'image':
-      // const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3]);
-      // const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3], markdownOutputPath);
       const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3], markdownOutputPath, finalMarkdownOutputPath);
       markdownContent += imageLink;
       imageCounter++;
@@ -120,43 +117,7 @@ annotations.forEach(annotation => {
   }
 });
 
-// // Function to process the image annotation with page number and image index
-// function processImageAnnotation(
-//   imagePath,
-//   imageOutputPath,
-//   pageNumber,
-//   imageCounter,
-//   pdfFilePath,
-//   markdownOutputPath,
-//   finalMarkdownOutputPath
-// ) {
-//   const pdfFilename = path.basename(pdfFilePath, '.pdf');
-//   const imageExtension = path.extname(imagePath);
-
-//   // Generate new image filename with page number and image index
-//   const newImagePath = path.join(imageOutputPath, `${pdfFilename}${pageNumber}p${imageCounter}${imageExtension}`);
-
-//   // Ensure both paths are absolute
-//   const absImagePath = path.resolve(newImagePath);
-//   const absMarkdownPath = path.resolve(finalMarkdownOutputPath);
-
-//   // Rename the image with the new filename
-//   fs.renameSync(imagePath, absImagePath);
-
-//   // Compute relative path from the markdown file to the image
-//   const markdownFileDir = path.dirname(absMarkdownPath);
-//   const relativeImagePath = path.relative(markdownFileDir, absImagePath);
-
-//   let imageLink;
-//   if (linkStyle === "obsidian") {
-//     imageLink = `![[${path.basename(absImagePath)}]]`;
-//   } else {
-//     imageLink = `![img](${relativeImagePath})`;
-//   }
-
-//   return `${imageLink}\n\n`;
-// }
-
+// Function to process the image annotation with page number and image index
 function processImageAnnotation(
   imagePath,
   imageOutputPath,
@@ -193,19 +154,18 @@ function processImageAnnotation(
   }
 
   // Debug output
-  console.log('finalMarkdownOutputPath:', finalMarkdownOutputPath);
-  console.log('absImageOutputPath:', absImageOutputPath);
-  console.log('absFinalMarkdownOutputPath:', absFinalMarkdownOutputPath);
-  console.log('markdownFileDir:', markdownFileDir);
-  console.log('newImagePath:', newImagePath);
-  console.log('relativeImagePath:', relativeImagePath);
+  // console.log('finalMarkdownOutputPath:', finalMarkdownOutputPath);
+  // console.log('absImageOutputPath:', absImageOutputPath);
+  // console.log('absFinalMarkdownOutputPath:', absFinalMarkdownOutputPath);
+  // console.log('markdownFileDir:', markdownFileDir);
+  // console.log('newImagePath:', newImagePath);
+  // console.log('relativeImagePath:', relativeImagePath);
 
   return `${imageLink}\n\n`;
 }
 
 // Get the filename of the input PDF
 const pdfFilename = path.basename(process.argv[3], '.pdf');
-
 
 // Append the output to the existing Markdown file (if it exists)
 fs.appendFileSync(markdownOutputPath, markdownContent, 'utf8');

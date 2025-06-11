@@ -10,34 +10,6 @@ local_tmp_dir="$HOME/anx_tmp"
 mkdir -p "$local_tmp_dir"
 
 # Function to process a single PDF page
-# process_pdf_page() {
-#     local pdf_file="$1"
-#     local page_number="$2"
-#     local image_output_path="$3"
-#     local image_format="$4"
-#     local markdown_output_path="$5"
-#     local link_style="$6"
-
-#     # Extract the specific page using pdftk (or Ghostscript)
-#     # pdftk "$pdf_file" cat $page_number output "page_$page_number.pdf"
-#     pdftk "$pdf_file" cat $page_number output "$local_tmp_dir/page_$page_number.pdf"
-
-#     # Call pdfannots2json for the extracted page and store the output in the "annotations" variable
-#     annotations=$(pdfannots2json "page_$page_number.pdf" --image-output-path="$image_output_path" --image-format="$image_format")
-
-#     # If annotations exist, call the anx.js script to process the annotations
-#     if [[ -n "$annotations" && "$annotations" != "{}" ]]; then
-#         # Pass annotations data, PDF file, and image_output_path to anx.js
-#         node "$anx_js_path" "$annotations" "$pdf_file" "$image_output_path" "$markdown_output_path" "$page_number" "$link_style"
-#     else
-#         # If annotations are empty, skip processing
-#         echo "No content for page $page_number in $pdf_file. Skipping..."
-#     fi
-
-#     # Clean up the extracted page after processing
-#     rm "page_$page_number.pdf"
-# }
-
 process_pdf_page() {
     local pdf_file="$1"
     local page_number="$2"
@@ -222,8 +194,6 @@ for pdf_file in $pdf_files; do
         fi
 
         for ((page=1; page<=num_pages; page++)); do
-            # process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$temp_md_path" "$link_style"
-            # process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$temp_md_path" "$link_style" "$markdown_output_path"
             process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$temp_md_path" "$link_style" "$markdown_output_path"
         done
 
