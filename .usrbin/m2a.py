@@ -80,11 +80,12 @@ def parse_cards(md):
         # Split on first '%'
         parts = re.split(r'\s*%\s*', block, maxsplit=1)
         if len(parts) < 2:
-            continue
+            continue  # skip if not both delimiters present
         front = parts[0].strip()
         back = parts[1].strip()
-        # Truncate back at the next '%', if present
-        back = re.split(r'\s*%\s*', back, maxsplit=1)[0].strip()
+        # Split back again at the next '%', if present
+        back_parts = re.split(r'\s*%\s*', back, maxsplit=1)
+        back = back_parts[0].strip()
         if front and back:
             cards.append((front, back))
     return cards
