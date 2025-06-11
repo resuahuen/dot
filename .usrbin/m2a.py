@@ -57,32 +57,27 @@ def parse_cards(md):
     i = 0
     while i < len(lines):
         if lines[i].strip().startswith('#kk'):
-            # Find first % delimiter
-            front = []
-            back = []
             i += 1
-            # Skip blank lines after #kk
-            while i < len(lines) and lines[i].strip() == '':
-                i += 1
             # Collect front until first %
+            front = []
             while i < len(lines) and lines[i].strip() != '%':
                 front.append(lines[i])
                 i += 1
-            # Skip the first %
-            while i < len(lines) and lines[i].strip() != '%':
-                i += 1
-            i += 1
-            # Skip blank lines after first %
+            # Skip first %
             while i < len(lines) and lines[i].strip() == '':
                 i += 1
+            if i < len(lines) and lines[i].strip() == '%':
+                i += 1
             # Collect back until second %
+            back = []
             while i < len(lines) and lines[i].strip() != '%':
                 back.append(lines[i])
                 i += 1
-            # Skip the second %
-            while i < len(lines) and lines[i].strip() != '%':
+            # Skip second %
+            while i < len(lines) and lines[i].strip() == '':
                 i += 1
-            i += 1
+            if i < len(lines) and lines[i].strip() == '%':
+                i += 1
             # Strip and join
             front_text = '\n'.join(front).strip()
             back_text = '\n'.join(back).strip()
