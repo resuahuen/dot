@@ -150,7 +150,7 @@ def parse_cards(md):
     back = []
     while i < n:
         if state == 'search_kk':
-            # Skip whitespace/newlines
+            # Skip whitespace/newlines before #kk
             while i < n and md[i].isspace():
                 i += 1
             if md[i:i+3] == '#kk':
@@ -186,7 +186,6 @@ def parse_cards(md):
                 back.append(md[i])
                 i += 1
     return cards
-
 
 def main(md_path, output_apkg, verbose=False):
     if verbose:
