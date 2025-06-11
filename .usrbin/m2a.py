@@ -106,30 +106,39 @@ def replace_images_with_anki(md, media_files):
 
 def parse_cards(md):
     cards = []
-    lines = md.splitlines()
+    i = 0
+    n = len(md)
     state = 'search_kk'
-    front_lines = []
-    back_lines = []
-    for line in lines:
+    front = []
+    back = []
+    while i < n:
         if state == 'search_kk':
-            if line.strip().startswith('#kk'):
-                front_lines = []
-                back_lines = []
+            if md[i:i+3] == '#kk':
+                i += 3
                 state = 'front'
+                front = []
+                back = []
+            else:
+                i += 1
         elif state == 'front':
-            if line.strip() == '%':
+            if md[i] == '%':
+                i += 1
                 state = 'back'
             else:
-                front_lines.append(line)
+                front.append(md[i])
+                i += 1
         elif state == 'back':
-            if line.strip() == '%':
-                front = '\n'.join(front_lines).strip()
-                back = '\n'.join(back_lines).strip()
-                if front and back:
-                    cards.append((front, back))
+            if md[i] == '%':
+                # Card complete
+                front_str = ''.join(front).strip()
+                back_str = ''.join(back).strip()
+                if front_str and back_str:
+                    cards.append((front_str, back_str))
                 state = 'search_kk'
+                i += 1
             else:
-                back_lines.append(line)
+                back.append(md[i])
+                i += 1
     return cards
 
 
