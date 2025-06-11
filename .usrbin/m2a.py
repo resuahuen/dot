@@ -88,20 +88,49 @@ def replace_images_with_anki(md, media_files):
 #             cards.append((front, back))
 #     return cards
 
+# def parse_cards(md):
+#     cards = []
+#     for block in md.split('#kk'):
+#         block = block.strip()
+#         if not block:
+#             continue
+#         # Split on lines containing only '%'
+#         parts = re.split(r'^\s*%\s*$', block, flags=re.MULTILINE)
+#         if len(parts) < 2:
+#             continue  # skip if not both delimiters present
+#         front = parts[0].strip()
+#         back = parts[1].strip()
+#         if front and back:
+#             cards.append((front, back))
+#     return cards
+
 def parse_cards(md):
     cards = []
-    for block in md.split('#kk'):
-        block = block.strip()
-        if not block:
-            continue
-        # Split on lines containing only '%'
-        parts = re.split(r'^\s*%\s*$', block, flags=re.MULTILINE)
-        if len(parts) < 2:
-            continue  # skip if not both delimiters present
-        front = parts[0].strip()
-        back = parts[1].strip()
-        if front and back:
-            cards.append((front, back))
+    lines = md.splitlines()
+    state = 'search_kk'
+    front_lines = []
+    back_lines = []
+    for line in lines:
+        if state == 'search_kk':
+            if line.strip().startswith('#kk'):
+                front_lines = []
+                back_lines = []
+                state = 'front'
+        elif state == 'front':
+            if line.strip() == '%':
+                state = 'back'
+            else:
+                front_lines.append(line)
+        elif state == 'back':
+            if line.strip() == '%':
+                # Card complete
+                front = '\n'.join(front_lines).strip()
+                back = '\n'.join(back_lines).strip()
+                if front and back:
+                    cards.append((front, back))
+                state = 'search_kk'
+            else:
+                back_lines.append(line)
     return cards
 
 
