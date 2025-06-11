@@ -71,20 +71,37 @@ def replace_images_with_anki(md, media_files):
 #             cards.append((front, back))
 #     return cards
 
+# def parse_cards(md):
+#     cards = []
+#     for block in md.split('#kk'):
+#         block = block.strip()
+#         if not block:
+#             continue
+#         # Split on first '%'
+#         parts = re.split(r'\s*%\s*', block, maxsplit=1)
+#         if len(parts) < 2:
+#             continue
+#         front = parts[0].strip()
+#         back = parts[1].strip()
+#         # Truncate back at the next '%', if present
+#         back = re.split(r'\s*%\s*', back, maxsplit=1)[0].strip()
+#         if front and back:
+#             cards.append((front, back))
+#     return cards
+
 def parse_cards(md):
     cards = []
     for block in md.split('#kk'):
         block = block.strip()
         if not block:
             continue
-        # Split on first '%'
-        parts = re.split(r'\s*%\s*', block, maxsplit=1)
-        if len(parts) < 2:
-            continue
-        front = parts[0].strip()
-        back = parts[1].strip()
-        # Truncate back at the next '%', if present
-        back = re.split(r'\s*%\s*', back, maxsplit=1)[0].strip()
+        # Find first % (front/back split) and last % (back end)
+        first_percent = block.find('%')
+        last_percent = block.rfind('%')
+        if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
+            continue  # skip if not both delimiters present
+        front = block[:first_percent].strip()
+        back = block[first_percent+1:last_percent].strip()
         if front and back:
             cards.append((front, back))
     return cards
