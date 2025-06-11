@@ -61,14 +61,13 @@ def parse_cards(md):
             continue
         # Remove the #kk marker and any leading/trailing whitespace
         content = block[3:].strip()
-        # Find all lines that are just a single '%'
-        percent_lines = [m.start() for m in re.finditer(r'^\s*%\s*$', content, flags=re.MULTILINE)]
-        if len(percent_lines) < 2:
+        # Find the positions of the first two % delimiters (even if surrounded by whitespace or on their own line)
+        percent_matches = list(re.finditer(r'^\s*%\s*$', content, flags=re.MULTILINE))
+        if len(percent_matches) < 2:
             continue  # Need at least two % delimiters
-        # Get the positions of the first and second %
-        first_percent = percent_lines[0]
-        second_percent = percent_lines[1]
-        # Extract front and back
+        first_percent = percent_matches[0].start()
+        second_percent = percent_matches[1].start()
+        # Extract front and back, strip leading/trailing whitespace and any % lines
         front = content[:first_percent].strip()
         back = content[first_percent:second_percent].replace('%', '').strip()
         # If back is empty, try everything after the second %
