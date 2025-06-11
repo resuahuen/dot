@@ -51,43 +51,25 @@ def replace_images_with_anki(md, media_files):
 #         cards.append((front, back))
 #     return cards
 
-# def parse_cards(md):
-#     cards = []
-#     blocks = md.split('#kk')
-#     for block in blocks:
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Find all % positions
-#         percent_positions = [m.start() for m in re.finditer(r'%', block)]
-#         if len(percent_positions) < 2:
-#             continue  # skip if not both delimiters present
-#         first_percent = percent_positions[0]
-#         last_percent = percent_positions[-1]
-#         front = block[:first_percent].strip()
-#         back = block[first_percent+1:last_percent].strip()
-#         if front and back:
-#             cards.append((front, back))
-#     return cards
-
 def parse_cards(md):
     cards = []
-    for block in md.split('#kk'):
+    blocks = md.split('#kk')
+    for block in blocks:
         block = block.strip()
         if not block:
             continue
-        lines = block.splitlines()
-        # Find all lines that are just '%'
-        percent_indices = [i for i, line in enumerate(lines) if line.strip() == '%']
-        if len(percent_indices) < 2:
+        # Find all % positions
+        percent_positions = [m.start() for m in re.finditer(r'%', block)]
+        if len(percent_positions) < 2:
             continue  # skip if not both delimiters present
-        first_percent = percent_indices[0]
-        last_percent = percent_indices[-1]
-        front = '\n'.join(lines[:first_percent]).strip()
-        back = '\n'.join(lines[first_percent+1:last_percent]).strip()
+        first_percent = percent_positions[0]
+        last_percent = percent_positions[-1]
+        front = block[:first_percent].strip()
+        back = block[first_percent+1:last_percent].strip()
         if front and back:
             cards.append((front, back))
     return cards
+
 def main(md_path, output_apkg, verbose=False):
     if verbose:
         print(f"Reading markdown file: {md_path}")
