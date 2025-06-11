@@ -53,38 +53,21 @@ def replace_images_with_anki(md, media_files):
 
 def parse_cards(md):
     cards = []
-    lines = md.splitlines()
-    i = 0
-    while i < len(lines):
-        if lines[i].strip().startswith('#kk'):
-            i += 1
-            # Collect front until first %
-            front = []
-            while i < len(lines) and lines[i].strip() != '%':
-                front.append(lines[i])
-                i += 1
-            # Skip first %
-            while i < len(lines) and lines[i].strip() == '':
-                i += 1
-            if i < len(lines) and lines[i].strip() == '%':
-                i += 1
-            # Collect back until second %
-            back = []
-            while i < len(lines) and lines[i].strip() != '%':
-                back.append(lines[i])
-                i += 1
-            # Skip second %
-            while i < len(lines) and lines[i].strip() == '':
-                i += 1
-            if i < len(lines) and lines[i].strip() == '%':
-                i += 1
-            # Strip and join
-            front_text = '\n'.join(front).strip()
-            back_text = '\n'.join(back).strip()
-            if front_text and back_text:
-                cards.append((front_text, back_text))
-        else:
-            i += 1
+    blocks = md.split('#kk')
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        # Find all % positions
+        percent_positions = [m.start() for m in re.finditer(r'%', block)]
+        if len(percent_positions) < 2:
+            continue  # skip if not both delimiters present
+        first_percent = percent_positions[0]
+        last_percent = percent_positions[-1]
+        front = block[:first_percent].strip()
+        back = block[first_percent+1:last_percent].strip()
+        if front and back:
+            cards.append((front, back))
     return cards
 
 def main(md_path, output_apkg, verbose=False):
