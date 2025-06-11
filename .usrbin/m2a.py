@@ -35,111 +35,37 @@ def replace_images_with_anki(md, media_files):
         return f'<img src="{filename}">'
     return re.sub(r'!\[.*?\]\((.*?)\)', repl, md)
 
+# def parse_cards(md):
+#     cards = []
+#     for block in md.split('#kk'):
+#         block = block.strip()
+#         if not block:
+#             continue
+#         # Find first % (front/back split) and last % (back end)
+#         first_percent = block.find('%')
+#         last_percent = block.rfind('%')
+#         if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
+#             continue  # skip if not both delimiters present
+#         front = block[:first_percent].strip()
+#         back = block[first_percent+1:last_percent].strip()
+#         cards.append((front, back))
+#     return cards
+
 def parse_cards(md):
     cards = []
     for block in md.split('#kk'):
         block = block.strip()
         if not block:
             continue
-        # Find first % (front/back split) and last % (back end)
-        first_percent = block.find('%')
-        last_percent = block.rfind('%')
-        if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
+        # Split on lines containing only '%'
+        parts = re.split(r'^\s*%\s*$', block, flags=re.MULTILINE)
+        if len(parts) < 2:
             continue  # skip if not both delimiters present
-        front = block[:first_percent].strip()
-        back = block[first_percent+1:last_percent].strip()
-        cards.append((front, back))
+        front = parts[0].strip()
+        back = parts[1].strip()
+        if front and back:
+            cards.append((front, back))
     return cards
-
-# def parse_cards(md):
-#     cards = []
-#     blocks = md.split('#kk')
-#     for block in blocks:
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Find all % positions
-#         percent_positions = [m.start() for m in re.finditer(r'%', block)]
-#         if len(percent_positions) < 2:
-#             continue  # skip if not both delimiters present
-#         first_percent = percent_positions[0]
-#         last_percent = percent_positions[-1]
-#         front = block[:first_percent].strip()
-#         back = block[first_percent+1:last_percent].strip()
-#         if front and back:
-#             cards.append((front, back))
-#     return cards
-
-# def parse_cards(md):
-#     cards = []
-#     for block in md.split('#kk'):
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Find all % positions, anywhere in the block
-#         percent_positions = [m.start() for m in re.finditer(r'%', block)]
-#         if len(percent_positions) < 2:
-#             continue  # skip if not both delimiters present
-#         first_percent = percent_positions[0]
-#         last_percent = percent_positions[-1]
-#         front = block[:first_percent].strip()
-#         back = block[first_percent+1:last_percent].strip()
-#         if front and back:
-#             cards.append((front, back))
-#     return cards
-
-# def parse_cards(md):
-#     cards = []
-#     for block in md.split('#kk'):
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Split on lines containing only '%'
-#         parts = re.split(r'^\s*%\s*$', block, flags=re.MULTILINE)
-#         if len(parts) < 2:
-#             continue  # skip if not both delimiters present
-#         front = parts[0].strip()
-#         back = parts[1].strip()
-#         if front and back:
-#             cards.append((front, back))
-#     return cards
-
-# def parse_cards(md):
-#     cards = []
-#     i = 0
-#     n = len(md)
-#     state = 'search_kk'
-#     front = []
-#     back = []
-#     while i < n:
-#         if state == 'search_kk':
-#             if md[i:i+3] == '#kk':
-#                 i += 3
-#                 state = 'front'
-#                 front = []
-#                 back = []
-#             else:
-#                 i += 1
-#         elif state == 'front':
-#             if md[i] == '%':
-#                 i += 1
-#                 state = 'back'
-#             else:
-#                 front.append(md[i])
-#                 i += 1
-#         elif state == 'back':
-#             if md[i] == '%':
-#                 # Card complete
-#                 front_str = ''.join(front).strip()
-#                 back_str = ''.join(back).strip()
-#                 if front_str and back_str:
-#                     cards.append((front_str, back_str))
-#                 state = 'search_kk'
-#                 i += 1
-#             else:
-#                 back.append(md[i])
-#                 i += 1
-#     return cards
 
 def main(md_path, output_apkg, verbose=False):
     if verbose:
