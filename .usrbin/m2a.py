@@ -53,28 +53,43 @@ def replace_images_with_anki(md, media_files):
 
 def parse_cards(md):
     cards = []
-    # Split on #kk, but keep the delimiter for easier parsing
-    blocks = re.split(r'(?=^#kk)', md, flags=re.MULTILINE)
-    for block in blocks:
-        block = block.strip()
-        if not block.startswith('#kk'):
-            continue
-        # Remove the #kk marker and any leading/trailing whitespace
-        content = block[3:].strip()
-        # Find the positions of the first two % delimiters (even if surrounded by whitespace or on their own line)
-        percent_matches = list(re.finditer(r'^\s*%\s*$', content, flags=re.MULTILINE))
-        if len(percent_matches) < 2:
-            continue  # Need at least two % delimiters
-        first_percent = percent_matches[0].start()
-        second_percent = percent_matches[1].start()
-        # Extract front and back, strip leading/trailing whitespace and any % lines
-        front = content[:first_percent].strip()
-        back = content[first_percent:second_percent].replace('%', '').strip()
-        # If back is empty, try everything after the second %
-        if not back:
-            back = content[second_percent:].replace('%', '').strip()
-        if front and back:
-            cards.append((front, back))
+    lines = md.splitlines()
+    i = 0
+    while i < len(lines):
+        if lines[i].strip().startswith('#kk'):
+            # Find first % delimiter
+            front = []
+            back = []
+            i += 1
+            # Skip blank lines after #kk
+            while i < len(lines) and lines[i].strip() == '':
+                i += 1
+            # Collect front until first %
+            while i < len(lines) and lines[i].strip() != '%':
+                front.append(lines[i])
+                i += 1
+            # Skip the first %
+            while i < len(lines) and lines[i].strip() != '%':
+                i += 1
+            i += 1
+            # Skip blank lines after first %
+            while i < len(lines) and lines[i].strip() == '':
+                i += 1
+            # Collect back until second %
+            while i < len(lines) and lines[i].strip() != '%':
+                back.append(lines[i])
+                i += 1
+            # Skip the second %
+            while i < len(lines) and lines[i].strip() != '%':
+                i += 1
+            i += 1
+            # Strip and join
+            front_text = '\n'.join(front).strip()
+            back_text = '\n'.join(back).strip()
+            if front_text and back_text:
+                cards.append((front_text, back_text))
+        else:
+            i += 1
     return cards
 
 def main(md_path, output_apkg, verbose=False):
