@@ -51,7 +51,7 @@ def replace_images_with_anki(md, media_files):
 #         cards.append((front, back))
 #     return cards
 
-def parse_cards(md):
+# def parse_cards(md):
     # cards = []
     # for block in md.split('#kk'):
     #     block = block.strip()
