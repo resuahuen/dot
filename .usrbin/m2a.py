@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import os
 import re
@@ -5,6 +7,7 @@ import sys
 import genanki
 from pathlib import Path
 import base64
+import shutil
 import argparse
 
 def convert_latex(md):
@@ -101,8 +104,16 @@ def main(md_path, output_apkg, verbose=False):
                 print(f"Including media: {src}")
         elif verbose:
             print(f"Warning: Media file not found: {src}")
-    genanki.Package(deck, media_files=media_list).write_to_file(output_apkg)
-    print(f"Deck written to {output_apkg}")
+    # genanki.Package(deck, media_files=media_list).write_to_file(output_apkg)
+    # print(f"Deck written to {output_apkg}")
+    # Write to a local temp file, then move to the desired output location
+    import tempfile
+    local_output = '/tmp/output.apkg'
+    genanki.Package(deck, media_files=media_list).write_to_file(local_output)
+    if verbose:
+        print(f"Deck written to temporary file {local_output}")
+    shutil.move(local_output, output_apkg)
+    print(f"Deck moved to {output_apkg}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
