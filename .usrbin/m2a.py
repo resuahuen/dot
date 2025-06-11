@@ -35,21 +35,21 @@ def replace_images_with_anki(md, media_files):
         return f'<img src="{filename}">'
     return re.sub(r'!\[.*?\]\((.*?)\)', repl, md)
 
-# def parse_cards(md):
-#     cards = []
-#     for block in md.split('#kk'):
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Find first % (front/back split) and last % (back end)
-#         first_percent = block.find('%')
-#         last_percent = block.rfind('%')
-#         if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
-#             continue  # skip if not both delimiters present
-#         front = block[:first_percent].strip()
-#         back = block[first_percent+1:last_percent].strip()
-#         cards.append((front, back))
-#     return cards
+def parse_cards(md):
+    cards = []
+    for block in md.split('#kk'):
+        block = block.strip()
+        if not block:
+            continue
+        # Find first % (front/back split) and last % (back end)
+        first_percent = block.find('%')
+        last_percent = block.rfind('%')
+        if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
+            continue  # skip if not both delimiters present
+        front = block[:first_percent].strip()
+        back = block[first_percent+1:last_percent].strip()
+        cards.append((front, back))
+    return cards
 
 # def parse_cards(md):
 #     cards = []
@@ -140,52 +140,6 @@ def replace_images_with_anki(md, media_files):
 #                 back.append(md[i])
 #                 i += 1
 #     return cards
-
-def parse_cards(md):
-    cards = []
-    i = 0
-    n = len(md)
-    state = 'search_kk'
-    front = []
-    back = []
-    while i < n:
-        if state == 'search_kk':
-            # Skip whitespace/newlines before #kk
-            while i < n and md[i].isspace():
-                i += 1
-            if md[i:i+3] == '#kk':
-                i += 3
-                state = 'front'
-                front = []
-                back = []
-            else:
-                i += 1
-        elif state == 'front':
-            # Skip whitespace/newlines before %
-            while i < n and md[i].isspace():
-                i += 1
-            if i < n and md[i] == '%':
-                i += 1
-                state = 'back'
-            elif i < n:
-                front.append(md[i])
-                i += 1
-        elif state == 'back':
-            # Skip whitespace/newlines before %
-            while i < n and md[i].isspace():
-                i += 1
-            if i < n and md[i] == '%':
-                # Card complete
-                front_str = ''.join(front)
-                back_str = ''.join(back)
-                if front_str.strip() and back_str.strip():
-                    cards.append((front_str, back_str))
-                state = 'search_kk'
-                i += 1
-            elif i < n:
-                back.append(md[i])
-                i += 1
-    return cards
 
 def main(md_path, output_apkg, verbose=False):
     if verbose:
