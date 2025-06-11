@@ -71,39 +71,24 @@ def replace_images_with_anki(md, media_files):
 #             cards.append((front, back))
 #     return cards
 
-# def parse_cards(md):
-#     cards = []
-#     for block in md.split('#kk'):
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Split on first '%'
-#         parts = re.split(r'\s*%\s*', block, maxsplit=1)
-#         if len(parts) < 2:
-#             continue
-#         front = parts[0].strip()
-#         back = parts[1].strip()
-#         # Truncate back at the next '%', if present
-#         back = re.split(r'\s*%\s*', back, maxsplit=1)[0].strip()
-#         if front and back:
-#             cards.append((front, back))
-#     return cards
-
 def parse_cards(md):
     cards = []
     for block in md.split('#kk'):
         block = block.strip()
         if not block:
             continue
-        # Split on first and second % (standalone or inline)
-        parts = re.split(r'^\s*%\s*$|\s*%\s*', block, maxsplit=2, flags=re.MULTILINE)
-        if len(parts) < 3:
-            continue  # Need at least two % delimiters
+        # Split on first '%'
+        parts = re.split(r'\s*%\s*', block, maxsplit=1)
+        if len(parts) < 2:
+            continue
         front = parts[0].strip()
         back = parts[1].strip()
+        # Truncate back at the next '%', if present
+        back = re.split(r'\s*%\s*', back, maxsplit=1)[0].strip()
         if front and back:
             cards.append((front, back))
     return cards
+
 
 
 def main(md_path, output_apkg, verbose=False):
