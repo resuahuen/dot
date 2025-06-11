@@ -78,17 +78,17 @@ def parse_cards(md):
         block = block.strip()
         if not block:
             continue
-        # Try to split on a line containing only '%'
-        parts = re.split(r'^\s*%\s*$', block, maxsplit=1, flags=re.MULTILINE)
+        # Split on lines containing only '%', up to 2 splits (3 parts max)
+        parts = [p.strip() for p in re.split(r'^\s*%\s*$', block, maxsplit=2, flags=re.MULTILINE)]
+        # Remove empty parts
+        parts = [p for p in parts if p]
         if len(parts) < 2:
-            # Fallback: split on first inline %
-            parts = re.split(r'\s*%\s*', block, maxsplit=1)
+            # Fallback: try inline delimiter, up to 2 splits
+            parts = [p.strip() for p in re.split(r'\s*%\s*', block, maxsplit=2)]
+            parts = [p for p in parts if p]
         if len(parts) < 2:
             continue
-        front = parts[0].strip()
-        back = parts[1].strip()
-        # Remove all trailing '%' and whitespace from back
-        back = re.sub(r'[%\s]+$', '', back)
+        front, back = parts[0], parts[1]
         if front and back:
             cards.append((front, back))
     return cards
