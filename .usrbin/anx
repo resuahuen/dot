@@ -1,4 +1,5 @@
 #!/bin/bash
+overwrite_md="false"
 
 # Get the absolute path of the anx.js script
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -86,15 +87,16 @@ read_default_paths() {
 prompt_overwrite() {
     local markdown_output_path="$1"
 
-    # Check if the markdown file already exists
     if [[ -f "$markdown_output_path" ]]; then
+        if [[ "$overwrite_md" == "true" ]]; then
+            > "$markdown_output_path"
+            return
+        fi
         echo "Overwrite extracted annotations (y/n)? [n]: "
         read -r user_input
-        # Default to 'n' if no input is provided
         user_input="${user_input:-n}"
 
         if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
-            # Clear the markdown file if user opts to overwrite
             > "$markdown_output_path"
         fi
     fi
@@ -128,16 +130,20 @@ while [[ $# -gt 0 ]]; do
     case $key in
         --image-output-path)
         image_output_path="$2"
-        shift # past argument
-        shift # past value
+        shift
+        shift
         ;;
         --image-format)
         image_format="$2"
-        shift # past argument
-        shift # past value
+        shift
+        shift
+        ;;
+        -y)
+        overwrite_md="true"
+        shift
         ;;
         -h|--help)
-        echo "Usage: anx.sh [--dir|--all] [<pdf_file>|--image-output-path <output_path>] [--image-format <format>]"
+        echo "Usage: anx.sh [--dir|--all] [<pdf_file>|--image-output-path <output_path>] [--image-format <format>] [-y]"
         exit 0
         ;;
         *)

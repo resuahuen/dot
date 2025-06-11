@@ -1,4 +1,4 @@
-![[testFileAnnots1p1.png]]
+![img](img/testFileAnnots1p1.png)
 
 # Test Page
 
