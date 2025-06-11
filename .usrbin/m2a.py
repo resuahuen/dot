@@ -118,12 +118,21 @@ def parse_cards(md):
                 state = 'front'
         elif state == 'front':
             if line.strip() == '%':
+                # Remove leading/trailing blank lines from front
+                while front_lines and not front_lines[0].strip():
+                    front_lines.pop(0)
+                while front_lines and not front_lines[-1].strip():
+                    front_lines.pop()
                 state = 'back'
             else:
                 front_lines.append(line)
         elif state == 'back':
             if line.strip() == '%':
-                # Card complete
+                # Remove leading/trailing blank lines from back
+                while back_lines and not back_lines[0].strip():
+                    back_lines.pop(0)
+                while back_lines and not back_lines[-1].strip():
+                    back_lines.pop()
                 front = '\n'.join(front_lines).strip()
                 back = '\n'.join(back_lines).strip()
                 if front and back:
