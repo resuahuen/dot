@@ -57,11 +57,12 @@ def parse_cards(md):
         block = block.strip()
         if not block:
             continue
-        # Find first % (front/back split) and last % (back end)
-        first_percent = block.find('%')
-        last_percent = block.rfind('%')
-        if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
-            continue  # skip if not both delimiters present
+        # Find all % delimiters
+        percents = [i for i, c in enumerate(block) if c == '%']
+        if len(percents) < 2:
+            continue  # skip if not at least two % delimiters
+        first_percent = percents[0]
+        last_percent = percents[-1]
         front = block[:first_percent].strip()
         back = block[first_percent+1:last_percent].strip()
         # Only add card if both front and back are non-empty
