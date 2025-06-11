@@ -95,19 +95,12 @@ def parse_cards(md):
         block = block.strip()
         if not block:
             continue
-        # Find all '%' delimiters
-        percents = [m.start() for m in re.finditer(r'\s*%\s*', block)]
-        if len(percents) < 2:
-            continue  # Need at least two '%' to form a card
-        # Use first and last percent as delimiters
-        first = percents[0]
-        last = percents[-1]
-        front = block[:first].strip()
-        back = block[first:]
-        # Remove the first '%' delimiter
-        back = re.sub(r'^\s*%\s*', '', back)
-        # Truncate at the last '%' delimiter
-        back = back[:back.rfind('%')].strip()
+        # Split on first and second % (standalone or inline)
+        parts = re.split(r'^\s*%\s*$|\s*%\s*', block, maxsplit=2, flags=re.MULTILINE)
+        if len(parts) < 3:
+            continue  # Need at least two % delimiters
+        front = parts[0].strip()
+        back = parts[1].strip()
         if front and back:
             cards.append((front, back))
     return cards
