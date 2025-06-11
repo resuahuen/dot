@@ -35,42 +35,48 @@ def replace_images_with_anki(md, media_files):
         return f'<img src="{filename}">'
     return re.sub(r'!\[.*?\]\((.*?)\)', repl, md)
 
-def parse_cards(md):
-    cards = []
-    for block in md.split('#kk'):
-        block = block.strip()
-        if not block:
-            continue
-        # Find first % (front/back split) and last % (back end)
-        first_percent = block.find('%')
-        last_percent = block.rfind('%')
-        if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
-            continue  # skip if not both delimiters present
-        front = block[:first_percent].strip()
-        back = block[first_percent+1:last_percent].strip()
-        cards.append((front, back))
-    return cards
-
 # def parse_cards(md):
 #     cards = []
-#     # Split on #kk, but keep the delimiter for easier parsing
-#     blocks = re.split(r'(?=^#kk)', md, flags=re.MULTILINE)
-#     for block in blocks:
+#     for block in md.split('#kk'):
 #         block = block.strip()
-#         if not block.startswith('#kk'):
+#         if not block:
 #             continue
-#         # Remove the #kk marker
-#         content = block[3:].strip()
-#         # Find all % positions
-#         percents = [m.start() for m in re.finditer(r'^%$', content, flags=re.MULTILINE)]
-#         if len(percents) < 2:
-#             continue  # Need at least two % lines
-#         # Extract front and back using the positions of the first two %
-#         front = content[:percents[0]].strip()
-#         back = content[percents[0]+1:percents[1]].strip()
-#         if front and back:
-#             cards.append((front, back))
+#         # Find first % (front/back split) and last % (back end)
+#         first_percent = block.find('%')
+#         last_percent = block.rfind('%')
+#         if first_percent == -1 or last_percent == -1 or first_percent == last_percent:
+#             continue  # skip if not both delimiters present
+#         front = block[:first_percent].strip()
+#         back = block[first_percent+1:last_percent].strip()
+#         cards.append((front, back))
 #     return cards
+
+def parse_cards(md):
+    cards = []
+    # Split on #kk, but keep the delimiter for easier parsing
+    blocks = re.split(r'(?=^#kk)', md, flags=re.MULTILINE)
+    for block in blocks:
+        block = block.strip()
+        if not block.startswith('#kk'):
+            continue
+        # Remove the #kk marker and any leading/trailing whitespace
+        content = block[3:].strip()
+        # Find all lines that are just a single '%'
+        percent_lines = [m.start() for m in re.finditer(r'^\s*%\s*$', content, flags=re.MULTILINE)]
+        if len(percent_lines) < 2:
+            continue  # Need at least two % delimiters
+        # Get the positions of the first and second %
+        first_percent = percent_lines[0]
+        second_percent = percent_lines[1]
+        # Extract front and back
+        front = content[:first_percent].strip()
+        back = content[first_percent:second_percent].replace('%', '').strip()
+        # If back is empty, try everything after the second %
+        if not back:
+            back = content[second_percent:].replace('%', '').strip()
+        if front and back:
+            cards.append((front, back))
+    return cards
 
 def main(md_path, output_apkg, verbose=False):
     if verbose:
