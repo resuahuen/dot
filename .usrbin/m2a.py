@@ -51,14 +51,32 @@ def replace_images_with_anki(md, media_files):
 #         cards.append((front, back))
 #     return cards
 
+# def parse_cards(md):
+#     cards = []
+#     blocks = md.split('#kk')
+#     for block in blocks:
+#         block = block.strip()
+#         if not block:
+#             continue
+#         # Find all % positions
+#         percent_positions = [m.start() for m in re.finditer(r'%', block)]
+#         if len(percent_positions) < 2:
+#             continue  # skip if not both delimiters present
+#         first_percent = percent_positions[0]
+#         last_percent = percent_positions[-1]
+#         front = block[:first_percent].strip()
+#         back = block[first_percent+1:last_percent].strip()
+#         if front and back:
+#             cards.append((front, back))
+#     return cards
+
 def parse_cards(md):
     cards = []
-    blocks = md.split('#kk')
-    for block in blocks:
+    for block in md.split('#kk'):
         block = block.strip()
         if not block:
             continue
-        # Find all % positions
+        # Find all % positions, anywhere in the block
         percent_positions = [m.start() for m in re.finditer(r'%', block)]
         if len(percent_positions) < 2:
             continue  # skip if not both delimiters present
