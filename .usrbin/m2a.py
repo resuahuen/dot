@@ -104,43 +104,6 @@ def replace_images_with_anki(md, media_files):
 #             cards.append((front, back))
 #     return cards
 
-# def parse_cards(md):
-#     cards = []
-#     i = 0
-#     n = len(md)
-#     state = 'search_kk'
-#     front = []
-#     back = []
-#     while i < n:
-#         if state == 'search_kk':
-#             if md[i:i+3] == '#kk':
-#                 i += 3
-#                 state = 'front'
-#                 front = []
-#                 back = []
-#             else:
-#                 i += 1
-#         elif state == 'front':
-#             if md[i] == '%':
-#                 i += 1
-#                 state = 'back'
-#             else:
-#                 front.append(md[i])
-#                 i += 1
-#         elif state == 'back':
-#             if md[i] == '%':
-#                 # Card complete
-#                 front_str = ''.join(front).strip()
-#                 back_str = ''.join(back).strip()
-#                 if front_str and back_str:
-#                     cards.append((front_str, back_str))
-#                 state = 'search_kk'
-#                 i += 1
-#             else:
-#                 back.append(md[i])
-#                 i += 1
-#     return cards
-
 def parse_cards(md):
     cards = []
     i = 0
@@ -150,9 +113,6 @@ def parse_cards(md):
     back = []
     while i < n:
         if state == 'search_kk':
-            # Skip whitespace/newlines before #kk
-            while i < n and md[i].isspace():
-                i += 1
             if md[i:i+3] == '#kk':
                 i += 3
                 state = 'front'
@@ -161,20 +121,14 @@ def parse_cards(md):
             else:
                 i += 1
         elif state == 'front':
-            # Skip whitespace/newlines before %
-            while i < n and md[i].isspace():
-                i += 1
-            if i < n and md[i] == '%':
+            if md[i] == '%':
                 i += 1
                 state = 'back'
-            elif i < n:
+            else:
                 front.append(md[i])
                 i += 1
         elif state == 'back':
-            # Skip whitespace/newlines before %
-            while i < n and md[i].isspace():
-                i += 1
-            if i < n and md[i] == '%':
+            if md[i] == '%':
                 # Card complete
                 front_str = ''.join(front).strip()
                 back_str = ''.join(back).strip()
@@ -182,7 +136,7 @@ def parse_cards(md):
                     cards.append((front_str, back_str))
                 state = 'search_kk'
                 i += 1
-            elif i < n:
+            else:
                 back.append(md[i])
                 i += 1
     return cards
