@@ -51,26 +51,6 @@ def replace_images_with_anki(md, media_files):
 #         cards.append((front, back))
 #     return cards
 
-# def parse_cards(md):
-#     cards = []
-#     for block in md.split('#kk'):
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Try to split on '%' as a delimiter, whether inline or on its own line
-#         # This matches both ' % ' and lines containing only '%'
-#         parts = re.split(r'\s*%\s*', block, maxsplit=1)
-#         if len(parts) < 2:
-#             continue  # skip if not both delimiters present
-#         front = parts[0].strip()
-#         back = parts[1].strip()
-#         # Remove trailing '%' from back if present (for cards ending with '%')
-#         if back.endswith('%'):
-#             back = back[:-1].strip()
-#         if front and back:
-#             cards.append((front, back))
-#     return cards
-
 def parse_cards(md):
     cards = []
     for block in md.split('#kk'):
@@ -84,8 +64,9 @@ def parse_cards(md):
             continue  # skip if not both delimiters present
         front = parts[0].strip()
         back = parts[1].strip()
-        # Truncate back at the next '%', if present
-        back = re.split(r'\s*%\s*', back, maxsplit=1)[0].strip()
+        # Remove trailing '%' from back if present (for cards ending with '%')
+        if back.endswith('%'):
+            back = back[:-1].strip()
         if front and back:
             cards.append((front, back))
     return cards
