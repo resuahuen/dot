@@ -51,47 +51,26 @@ def replace_images_with_anki(md, media_files):
 #         cards.append((front, back))
 #     return cards
 
-# def parse_cards(md):
-#     cards = []
-#     for block in md.split('#kk'):
-#         block = block.strip()
-#         if not block:
-#             continue
-#         # Try to split on '%' as a delimiter, whether inline or on its own line
-#         # This matches both ' % ' and lines containing only '%'
-#         parts = re.split(r'\s*%\s*', block, maxsplit=1)
-#         if len(parts) < 2:
-#             continue  # skip if not both delimiters present
-#         front = parts[0].strip()
-#         back = parts[1].strip()
-#         # Remove trailing '%' from back if present (for cards ending with '%')
-#         if back.endswith('%'):
-#             back = back[:-1].strip()
-#         if front and back:
-#             cards.append((front, back))
-#     return cards
-
-
 def parse_cards(md):
     cards = []
     for block in md.split('#kk'):
         block = block.strip()
         if not block:
             continue
-        # Split on lines containing only '%', up to 2 splits (3 parts max)
-        parts = [p.strip() for p in re.split(r'^\s*%\s*$', block, maxsplit=2, flags=re.MULTILINE)]
-        # Remove empty parts
-        parts = [p for p in parts if p]
+        # Try to split on '%' as a delimiter, whether inline or on its own line
+        # This matches both ' % ' and lines containing only '%'
+        parts = re.split(r'\s*%\s*', block, maxsplit=1)
         if len(parts) < 2:
-            # Fallback: try inline delimiter, up to 2 splits
-            parts = [p.strip() for p in re.split(r'\s*%\s*', block, maxsplit=2)]
-            parts = [p for p in parts if p]
-        if len(parts) < 2:
-            continue
-        front, back = parts[0], parts[1]
+            continue  # skip if not both delimiters present
+        front = parts[0].strip()
+        back = parts[1].strip()
+        # Remove trailing '%' from back if present (for cards ending with '%')
+        if back.endswith('%'):
+            back = back[:-1].strip()
         if front and back:
             cards.append((front, back))
     return cards
+
 
 def main(md_path, output_apkg, verbose=False):
     if verbose:
