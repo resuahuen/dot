@@ -15,6 +15,7 @@ process_pdf_page() {
     local image_output_path="$3"
     local image_format="$4"
     local markdown_output_path="$5"
+    local link_style="$6"
 
     # Extract the specific page using pdftk (or Ghostscript)
     pdftk "$pdf_file" cat $page_number output "page_$page_number.pdf"
@@ -25,7 +26,7 @@ process_pdf_page() {
     # If annotations exist, call the anx.js script to process the annotations
     if [[ -n "$annotations" && "$annotations" != "{}" ]]; then
         # Pass annotations data, PDF file, and image_output_path to anx.js
-        node "$anx_js_path" "$annotations" "$pdf_file" "$image_output_path" "$markdown_output_path" "$page_number"
+        node "$anx_js_path" "$annotations" "$pdf_file" "$image_output_path" "$markdown_output_path" "$page_number" "$link_style"
     else
         # If annotations are empty, skip processing
         echo "No content for page $page_number in $pdf_file. Skipping..."
@@ -63,15 +64,21 @@ read_default_paths() {
     local cfg_file="$1"
 
     if [[ -f "$cfg_file" ]]; then
-        # Read the relative path from anx.cfg
-        local relative_image_output_path=$(grep -E "^image_output_path=" "$cfg_file" | sed 's/^image_output_path=//')
+        # Only read uncommented lines
+        local relative_image_output_path=$(grep -E "^[[:space:]]*image_output_path=" "$cfg_file" | sed 's/^image_output_path=//')
 
-        # Get the absolute path of the anx.cfg file
-        local abs_cfg_file=$(realpath "$cfg_file")
-        local config_dir=$(dirname "$abs_cfg_file")
+        if [[ -n "$relative_image_output_path" ]]; then
+            # Get the absolute path of the anx.cfg file
+            local abs_cfg_file=$(realpath "$cfg_file")
+            local config_dir=$(dirname "$abs_cfg_file")
 
-        # Resolve the relative path using the config_dir as the base directory
-        image_output_path_default=$(realpath --relative-to="$PWD" "$config_dir/$relative_image_output_path")
+            # Resolve the relative path using the config_dir as the base directory
+            image_output_path_default=$(realpath --relative-to="$PWD" "$config_dir/$relative_image_output_path")
+        else
+            image_output_path_default=""
+        fi
+        # Read the link_style
+        link_style=$(grep -E "^[[:space:]]*link_style=" "$cfg_file" | sed 's/^link_style=//')
     fi
 }
 
@@ -143,48 +150,51 @@ done
 # Find anx.cfg file in the current directory or parent directories
 cfg_file=$(find_anx_cfg "$(dirname "$PWD")")
 
+
 # Read default paths from anx.cfg file if found
 if [[ -n "$cfg_file" ]]; then
     read_default_paths "$cfg_file"
 fi
 
-# Set default values for other options if not provided
-image_output_path="${image_output_path:-$image_output_path_default}"
+# Only set image_output_path if it was set by CLI or anx.cfg
+if [[ -n "$image_output_path_default" && -z "$image_output_path" ]]; then
+    image_output_path="$image_output_path_default"
+fi
+
 image_format="${image_format:-png}"
 
-# Set default image output path to "./img/" if not provided or fetched from anx.cfg
-image_output_path="${image_output_path:-./img/}"
 
-# Process each PDF file
+# pdf processing loop
 for pdf_file in $pdf_files; do
     if [ -f "$pdf_file" ]; then
-        # Copy PDF to local temp directory
+        original_pdf="$(realpath "$pdf_file")"
         local_pdf="$local_tmp_dir/$(basename "$pdf_file")"
         cp "$pdf_file" "$local_pdf"
 
-        # Get the number of pages using pdfinfo
         num_pages=$(pdfinfo "$local_pdf" | grep "Pages" | awk '{print $2}')
-
-        # Define the Markdown output path for this PDF file (in original location)
-        markdown_output_path="${pdf_file%.pdf}.md"
-        
-        # Prompt the user to overwrite the markdown file if it exists
+        markdown_output_path="${original_pdf%.pdf}.md"
         prompt_overwrite "$markdown_output_path"
 
-        # Process each page of the PDF file
-        for ((page=1; page<=num_pages; page++)); do
-            # Generate a unique image output path for each page
-            page_image_output_path="${image_output_path}/$(basename "$pdf_file" .pdf)_page_${page}"
+        # Only use a global image_output_path if it was set by anx.cfg or CLI
+        if [[ -n "$image_output_path" ]]; then
+            page_image_output_path="$image_output_path"
+            mkdir -p "$page_image_output_path"
+        else
+            # Use <dir_of_pdf>/img if not set by user/config
+            pdf_dir="$(dirname "$original_pdf")"
+            page_image_output_path="$pdf_dir/img"
+            mkdir -p "$page_image_output_path"
+        fi
 
-            # Process the single page (use local_pdf)
-            process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$markdown_output_path"
+        for ((page=1; page<=num_pages; page++)); do
+            process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$markdown_output_path" "$link_style"
         done
 
-        # Clean up local copy
         rm "$local_pdf"
     else
         echo "Error: $pdf_file is not a valid file."
     fi
 done
+rm -rf "$local_tmp_dir"
 # Remove the local temp directory after processing all files
 rm -rf "$local_tmp_dir"

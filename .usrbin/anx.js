@@ -1,3 +1,4 @@
+let linkStyle = process.argv[7] || "markdown"; // default
 const fs = require('fs');
 const path = require('path');
 
@@ -13,6 +14,17 @@ if (annotations.length === 0) {
   const pdfFilename = path.basename(process.argv[3], '.pdf');
   console.log(`No annotations found in '${pdfFilename}.pdf'. Exiting...`);
   process.exit(0);
+}
+
+if (process.argv[7]) {
+  const cfgPath = process.argv[7];
+  if (fs.existsSync(cfgPath)) {
+    const cfgContent = fs.readFileSync(cfgPath, "utf8");
+    const match = cfgContent.match(/^\s*link_style\s*=\s*(\w+)/m);
+    if (match) {
+      linkStyle = match[1];
+    }
+  }
 }
 
 // Function to remove Unicode characters from a string
@@ -77,6 +89,9 @@ function replacePageLinks(text, pageNumber, pdfFilePath) {
 let markdownContent = '';
 let imageCounter = 1;
 
+// Define the markdown output path based on the PDF file path
+const markdownOutputPath = process.argv[5];
+
 // Iterate through the annotations to process each one
 annotations.forEach(annotation => {
   // const pageNumber = annotation.page;
@@ -90,7 +105,8 @@ annotations.forEach(annotation => {
       markdownContent += textAnnotation;
       break;
     case 'image':
-      const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3]);
+      // const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3]);
+      const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3], markdownOutputPath);
       markdownContent += imageLink;
       imageCounter++;
       break;
@@ -101,7 +117,28 @@ annotations.forEach(annotation => {
 });
 
 // Function to process the image annotation with page number and image index
-function processImageAnnotation(imagePath, imageOutputPath, pageNumber, imageCounter, pdfFilePath) {
+// function processImageAnnotation(imagePath, imageOutputPath, pageNumber, imageCounter, pdfFilePath) {
+//   const pdfFilename = path.basename(process.argv[3], '.pdf');
+//   const imageExtension = path.extname(imagePath);
+
+//   // Generate new image filename with page number and image index
+//   const newImagePath = path.join(imageOutputPath, `${pdfFilename}${pageNumber}p${imageCounter}${imageExtension}`);
+
+//   // Rename the image with the new filename
+//   fs.renameSync(imagePath, newImagePath);
+
+//   const imageLink = `![[${path.basename(newImagePath)}]]`;
+
+//   // Check if the annotation has a comment
+//   const annotation = annotations.find(a => a.imagePath === imagePath);
+//   if (annotation.comment) {
+//     const commentText = `${annotation.comment}`;
+//     return `${imageLink}\n${commentText}\n\n`;
+//   }
+
+//   return `${imageLink}\n\n`;
+// }
+function processImageAnnotation(imagePath, imageOutputPath, pageNumber, imageCounter, pdfFilePath, markdownOutputPath) {
   const pdfFilename = path.basename(process.argv[3], '.pdf');
   const imageExtension = path.extname(imagePath);
 
@@ -111,7 +148,19 @@ function processImageAnnotation(imagePath, imageOutputPath, pageNumber, imageCou
   // Rename the image with the new filename
   fs.renameSync(imagePath, newImagePath);
 
-  const imageLink = `![[${path.basename(newImagePath)}]]`;
+  // Compute relative path from markdown file to image
+  const markdownFileDir = path.dirname(markdownOutputPath);
+  const relativeImagePath = path.relative(markdownFileDir, newImagePath);
+
+  // // Use standard markdown image link
+  // const imageLink = `![img](${relativeImagePath})`;
+
+  let imageLink;
+  if (linkStyle === "obsidian") {
+    imageLink = `![[${path.basename(newImagePath)}]]`;
+  } else {
+    imageLink = `![img](${relativeImagePath})`;
+  }
 
   // Check if the annotation has a comment
   const annotation = annotations.find(a => a.imagePath === imagePath);
@@ -126,8 +175,7 @@ function processImageAnnotation(imagePath, imageOutputPath, pageNumber, imageCou
 // Get the filename of the input PDF
 const pdfFilename = path.basename(process.argv[3], '.pdf');
 
-// Define the markdown output path based on the PDF file path
-const markdownOutputPath = path.join(path.dirname(process.argv[3]), `${pdfFilename}.md`);
+
 
 // Append the output to the existing Markdown file (if it exists)
 fs.appendFileSync(markdownOutputPath, markdownContent, 'utf8');
