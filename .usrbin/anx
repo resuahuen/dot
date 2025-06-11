@@ -186,3 +186,5 @@ for pdf_file in $pdf_files; do
         echo "Error: $pdf_file is not a valid file."
     fi
 done
+# Remove the local temp directory after processing all files
+rm -rf "$local_tmp_dir"
