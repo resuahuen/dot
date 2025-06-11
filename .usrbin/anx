@@ -198,7 +198,42 @@ fi
 image_format="${image_format:-png}"
 
 
-# pdf processing loop
+# # pdf processing loop
+# for pdf_file in $pdf_files; do
+#     if [ -f "$pdf_file" ]; then
+#         original_pdf="$(realpath "$pdf_file")"
+#         local_pdf="$local_tmp_dir/$(basename "$pdf_file")"
+#         cp "$pdf_file" "$local_pdf"
+
+#         num_pages=$(pdfinfo "$local_pdf" | grep "Pages" | awk '{print $2}')
+#         markdown_output_path="${original_pdf%.pdf}.md"
+#         prompt_overwrite "$markdown_output_path"
+
+#         # Only use a global image_output_path if it was set by anx.cfg or CLI
+#         if [[ -n "$image_output_path" ]]; then
+#             page_image_output_path="$image_output_path"
+#             mkdir -p "$page_image_output_path"
+#         else
+#             # Use <dir_of_pdf>/img if not set by user/config
+#             pdf_dir="$(dirname "$original_pdf")"
+#             page_image_output_path="$pdf_dir/img"
+#             mkdir -p "$page_image_output_path"
+#         fi
+
+#         for ((page=1; page<=num_pages; page++)); do
+#             process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$markdown_output_path" "$link_style"
+#         done
+
+#         rm "$local_pdf"
+#     else
+#         echo "Error: $pdf_file is not a valid file."
+#     fi
+# done
+
+# Set up temp markdown file path in anx_tmp
+temp_md_path="$local_tmp_dir/tmp.md"
+> "$temp_md_path"
+
 for pdf_file in $pdf_files; do
     if [ -f "$pdf_file" ]; then
         original_pdf="$(realpath "$pdf_file")"
@@ -209,26 +244,24 @@ for pdf_file in $pdf_files; do
         markdown_output_path="${original_pdf%.pdf}.md"
         prompt_overwrite "$markdown_output_path"
 
-        # Only use a global image_output_path if it was set by anx.cfg or CLI
         if [[ -n "$image_output_path" ]]; then
             page_image_output_path="$image_output_path"
             mkdir -p "$page_image_output_path"
         else
-            # Use <dir_of_pdf>/img if not set by user/config
             pdf_dir="$(dirname "$original_pdf")"
             page_image_output_path="$pdf_dir/img"
             mkdir -p "$page_image_output_path"
         fi
 
         for ((page=1; page<=num_pages; page++)); do
-            process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$markdown_output_path" "$link_style"
+            process_pdf_page "$local_pdf" "$page" "$page_image_output_path" "$image_format" "$temp_md_path" "$link_style"
         done
 
+        cp "$temp_md_path" "$markdown_output_path"
         rm "$local_pdf"
     else
         echo "Error: $pdf_file is not a valid file."
     fi
 done
-rm -rf "$local_tmp_dir"
 # Remove the local temp directory after processing all files
 rm -rf "$local_tmp_dir"
