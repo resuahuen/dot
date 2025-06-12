@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+def run_pix2tex(image_path, temperature=None):
+    cmd = ["pix2tex"]
+    if temperature is not None:
+        cmd += ["-t", str(temperature)]
+    cmd.append(image_path)
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            encoding="utf-8"
+        )
+        output = result.stdout.strip()
+        if ':' in output:
+            return output.split(':', 1)[1].strip()
+        return output
+    except Exception as e:
+        print(f"Error running pix2tex on {image_path}: {e}")
+        return ""
+
+def ask_mode():
+    try:
+        mode = input("Replace images with LaTeX or append below? [a/r] (default: append): ").strip().lower()
+    except EOFError:
+        mode = ""
+    if mode == "r":
+        return "replace"
+    return "append"
+
+def process_markdown(md_path, temperature=None):
+    mode = ask_mode()
+    with open(md_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    new_lines = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        mth_match = re.match(r'!\[mth\]\(([^)]+)\)', line.strip())
+        var_match = re.match(r'!\[var\]\(([^)]+)\)', line.strip())
+
+        if mth_match or var_match:
+            image_path = mth_match.group(1) if mth_match else var_match.group(1)
+            placeholder = "mth" if mth_match else "var"
+            image_full_path = str((Path(md_path).parent / image_path).resolve())
+            latex = run_pix2tex(image_full_path, temperature)
+            print(f"[p2t] {placeholder}: {image_path} -> {latex}")
+            if mode == "replace":
+                if mth_match:
+                    new_lines.append(f"$$ {latex} $$")
+                else:
+                    new_lines.append(f"$ {latex} $")
+            else:
+                new_lines.append(line.rstrip('\n'))
+                if mth_match:
+                    new_lines.append(f"\n$$ {latex} $$\n")
+                else:
+                    new_lines.append(f"\n$ {latex} $\n")
+            i += 1
+            # Optionally skip any existing LaTeX output below the image
+            while i < len(lines) and (lines[i].strip().startswith('$$') or lines[i].strip().startswith('$')):
+                i += 1
+            continue
+        new_lines.append(line.rstrip('\n'))
+        i += 1
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write('\n'.join(new_lines) + '\n')
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Process markdown math images with pix2tex.")
+    parser.add_argument("markdown_file", help="Markdown file to process")
+    parser.add_argument("-t", "--temperature", type=float, default=None, help="Softmax sampling frequency for pix2tex")
+    args = parser.parse_args()
+    process_markdown(args.markdown_file, args.temperature)
+
+# import re
+# import subprocess
+# import sys
+# from pathlib import Path
+
+# def run_pix2tex(image_path, temperature=None):
+#     """Run pix2tex on the given image and return the output as a string."""
+#     cmd = ["pix2tex"]
+#     if temperature is not None:
+#         cmd += ["-t", str(temperature)]
+#     cmd.append(image_path)
+#     try:
+#         result = subprocess.run(
+#             cmd,
+#             stdout=subprocess.PIPE,
+#             stderr=subprocess.PIPE,
+#             check=True,
+#             encoding="utf-8"
+#         )
+#         # pix2tex output: "image_path: latex"
+#         output = result.stdout.strip()
+#         if ':' in output:
+#             return output.split(':', 1)[1].strip()
+#         return output
+#     except Exception as e:
+#         print(f"Error running pix2tex on {image_path}: {e}")
+#         return ""
+
+# def process_markdown(md_path, temperature=None):
+#     with open(md_path, "r", encoding="utf-8") as f:
+#         lines = f.readlines()
+
+#     new_lines = []
+#     i = 0
+#     while i < len(lines):
+#         line = lines[i]
+#         mth_match = re.match(r'!\[mth\]\(([^)]+)\)', line.strip())
+#         var_match = re.match(r'!\[var\]\(([^)]+)\)', line.strip())
+
+#         if mth_match or var_match:
+#             image_path = mth_match.group(1) if mth_match else var_match.group(1)
+#             placeholder = "mth" if mth_match else "var"
+#             # Resolve image path relative to the markdown file
+#             image_full_path = str((Path(md_path).parent / image_path).resolve())
+#             latex = run_pix2tex(image_full_path, temperature)
+#             print(f"[p2t] {placeholder}: {image_path} -> {latex}")
+#             new_lines.append(line.rstrip('\n'))
+#             if mth_match:
+#                 new_lines.append(f"\n$$ {latex} $$\n")
+#             else:
+#                 new_lines.append(f"\n$ {latex} $\n")
+#             i += 1
+#             # Optionally skip any existing LaTeX output below the image
+#             while i < len(lines) and (lines[i].strip().startswith('$$') or lines[i].strip().startswith('$')):
+#                 i += 1
+#             continue
+#         new_lines.append(line.rstrip('\n'))
+#         i += 1
+
+#     with open(md_path, "w", encoding="utf-8") as f:
+#         f.write('\n'.join(new_lines) + '\n')
+
+# if __name__ == "__main__":
+#     import argparse
+#     parser = argparse.ArgumentParser(description="Process markdown math images with pix2tex.")
+#     parser.add_argument("markdown_file", help="Markdown file to process")
+#     parser.add_argument("-t", "--temperature", type=float, default=None, help="Softmax sampling frequency for pix2tex")
+#     args = parser.parse_args()
+#     process_markdown(args.markdown_file, args.temperature)
