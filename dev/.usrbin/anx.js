@@ -107,7 +107,17 @@ annotations.forEach(annotation => {
       markdownContent += textAnnotation;
       break;
     case 'image':
-      const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3], markdownOutputPath, finalMarkdownOutputPath);
+      // const imageLink = processImageAnnotation(annotation.imagePath, process.argv[4], pageNumber, imageCounter, process.argv[3], markdownOutputPath, finalMarkdownOutputPath);
+      const imageLink = processImageAnnotation(
+        annotation.imagePath,
+        process.argv[4],
+        pageNumber,
+        imageCounter,
+        process.argv[3],
+        markdownOutputPath,
+        finalMarkdownOutputPath,
+        annotation // pass the whole annotation
+      );
       markdownContent += imageLink;
       imageCounter++;
       break;
@@ -117,7 +127,53 @@ annotations.forEach(annotation => {
   }
 });
 
-// Function to process the image annotation with page number and image index
+// // Function to process the image annotation with page number and image index
+// function processImageAnnotation(
+//   imagePath,
+//   imageOutputPath,
+//   pageNumber,
+//   imageCounter,
+//   pdfFilePath,
+//   markdownOutputPath,
+//   finalMarkdownOutputPath
+// ) {
+//   const path = require('path');
+//   const fs = require('fs');
+//   const pdfFilename = path.basename(pdfFilePath, '.pdf');
+//   const imageExtension = path.extname(imagePath);
+
+//   // Always resolve imageOutputPath and finalMarkdownOutputPath to absolute paths
+//   const absImageOutputPath = path.resolve(imageOutputPath);
+//   const absFinalMarkdownOutputPath = path.resolve(finalMarkdownOutputPath);
+
+//   // Generate new image filename with page number and image index
+//   const newImagePath = path.join(absImageOutputPath, `${pdfFilename}${pageNumber}p${imageCounter}${imageExtension}`);
+
+//   // Rename the image with the new filename
+//   fs.renameSync(imagePath, newImagePath);
+
+//   // Compute relative path from the final markdown file's directory to the image
+//   const markdownFileDir = absFinalMarkdownOutputPath;
+//   const relativeImagePath = path.relative(markdownFileDir, newImagePath);
+
+//   let imageLink;
+//   if (linkStyle === "obsidian") {
+//     imageLink = `![[${path.basename(newImagePath)}]]`;
+//   } else {
+//     imageLink = `![img](${relativeImagePath.replace(/\\/g, '/')})`;
+//   }
+
+//   // Debug output
+//   // console.log('finalMarkdownOutputPath:', finalMarkdownOutputPath);
+//   // console.log('absImageOutputPath:', absImageOutputPath);
+//   // console.log('absFinalMarkdownOutputPath:', absFinalMarkdownOutputPath);
+//   // console.log('markdownFileDir:', markdownFileDir);
+//   // console.log('newImagePath:', newImagePath);
+//   // console.log('relativeImagePath:', relativeImagePath);
+
+//   return `${imageLink}\n\n`;
+// }
+
 function processImageAnnotation(
   imagePath,
   imageOutputPath,
@@ -125,7 +181,8 @@ function processImageAnnotation(
   imageCounter,
   pdfFilePath,
   markdownOutputPath,
-  finalMarkdownOutputPath
+  finalMarkdownOutputPath,
+  annotation // new parameter
 ) {
   const path = require('path');
   const fs = require('fs');
@@ -146,20 +203,22 @@ function processImageAnnotation(
   const markdownFileDir = absFinalMarkdownOutputPath;
   const relativeImagePath = path.relative(markdownFileDir, newImagePath);
 
+  // --- Placeholder selection based on color ---
+  let placeholder = "img";
+  if (annotation && annotation.colorCategory) {
+    if (annotation.colorCategory.toLowerCase() === "green") {
+      placeholder = "mth";
+    } else if (annotation.colorCategory.toLowerCase() === "red") {
+      placeholder = "var";
+    }
+  }
+
   let imageLink;
   if (linkStyle === "obsidian") {
     imageLink = `![[${path.basename(newImagePath)}]]`;
   } else {
-    imageLink = `![img](${relativeImagePath.replace(/\\/g, '/')})`;
+    imageLink = `![${placeholder}](${relativeImagePath.replace(/\\/g, '/')})`;
   }
-
-  // Debug output
-  // console.log('finalMarkdownOutputPath:', finalMarkdownOutputPath);
-  // console.log('absImageOutputPath:', absImageOutputPath);
-  // console.log('absFinalMarkdownOutputPath:', absFinalMarkdownOutputPath);
-  // console.log('markdownFileDir:', markdownFileDir);
-  // console.log('newImagePath:', newImagePath);
-  // console.log('relativeImagePath:', relativeImagePath);
 
   return `${imageLink}\n\n`;
 }
