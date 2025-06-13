@@ -127,53 +127,7 @@ annotations.forEach(annotation => {
   }
 });
 
-// // Function to process the image annotation with page number and image index
-// function processImageAnnotation(
-//   imagePath,
-//   imageOutputPath,
-//   pageNumber,
-//   imageCounter,
-//   pdfFilePath,
-//   markdownOutputPath,
-//   finalMarkdownOutputPath
-// ) {
-//   const path = require('path');
-//   const fs = require('fs');
-//   const pdfFilename = path.basename(pdfFilePath, '.pdf');
-//   const imageExtension = path.extname(imagePath);
-
-//   // Always resolve imageOutputPath and finalMarkdownOutputPath to absolute paths
-//   const absImageOutputPath = path.resolve(imageOutputPath);
-//   const absFinalMarkdownOutputPath = path.resolve(finalMarkdownOutputPath);
-
-//   // Generate new image filename with page number and image index
-//   const newImagePath = path.join(absImageOutputPath, `${pdfFilename}${pageNumber}p${imageCounter}${imageExtension}`);
-
-//   // Rename the image with the new filename
-//   fs.renameSync(imagePath, newImagePath);
-
-//   // Compute relative path from the final markdown file's directory to the image
-//   const markdownFileDir = absFinalMarkdownOutputPath;
-//   const relativeImagePath = path.relative(markdownFileDir, newImagePath);
-
-//   let imageLink;
-//   if (linkStyle === "obsidian") {
-//     imageLink = `![[${path.basename(newImagePath)}]]`;
-//   } else {
-//     imageLink = `![img](${relativeImagePath.replace(/\\/g, '/')})`;
-//   }
-
-//   // Debug output
-//   // console.log('finalMarkdownOutputPath:', finalMarkdownOutputPath);
-//   // console.log('absImageOutputPath:', absImageOutputPath);
-//   // console.log('absFinalMarkdownOutputPath:', absFinalMarkdownOutputPath);
-//   // console.log('markdownFileDir:', markdownFileDir);
-//   // console.log('newImagePath:', newImagePath);
-//   // console.log('relativeImagePath:', relativeImagePath);
-
-//   return `${imageLink}\n\n`;
-// }
-
+// Function to process image annotations
 function processImageAnnotation(
   imagePath,
   imageOutputPath,
@@ -218,6 +172,11 @@ function processImageAnnotation(
     imageLink = `![[${path.basename(newImagePath)}]]`;
   } else {
     imageLink = `![${placeholder}](${relativeImagePath.replace(/\\/g, '/')})`;
+  }
+
+  // --- Add comment below image if present ---
+  if (annotation && annotation.comment) {
+    return `${imageLink}\n${annotation.comment}\n\n`;
   }
 
   return `${imageLink}\n\n`;
