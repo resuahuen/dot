@@ -128,10 +128,14 @@ def main(md_path, output_apkg, verbose=False):
     model = genanki.Model(
         1607392319,
         'Simple Model',
-        fields=[{'name': 'Front'}, {'name': 'Back'}],
+        fields=[
+            {'name': 'Front'},
+            {'name': 'Back'},
+            {'name': 'Tags'},  # <-- Add this line
+        ],
         templates=[{
             'name': 'Card 1',
-            'qfmt': '{{Front}}',
+            'qfmt': '{{Tags}}<br><br>{{Front}}',  # <-- Show tags on the front
             'afmt': '{{Back}}',
         }],
     )
@@ -142,9 +146,13 @@ def main(md_path, output_apkg, verbose=False):
     for i, (front, back, tags) in enumerate(cards, 1):
         front_html = replace_images_with_anki(front, media_files)
         back_html = replace_images_with_anki(back, media_files)
-        # Add filename tag to tags list
         tags_with_filename = tags + [filename_tag]
-        deck.add_note(genanki.Note(model=model, fields=[front_html, back_html], tags=tags_with_filename))
+        tags_field = ' '.join(tags_with_filename)  # Join tags for display
+        deck.add_note(genanki.Note(
+            model=model,
+            fields=[front_html, back_html, tags_field],  # Pass tags as a field
+            tags=tags_with_filename  # Still pass tags for Anki's tag system
+        ))
         if verbose:
             print(f"Added card {i}: Front length {len(front_html)}, Back length {len(back_html)}, Tags: {tags_with_filename}")
             front_imgs = list(extract_image_paths(front))
