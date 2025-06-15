@@ -113,6 +113,9 @@ def main(md_path, output_apkg, verbose=False):
     if verbose:
         print(f"Found {len(cards)} cards.")
 
+    # Get filename (without extension), replace spaces with underscores
+    filename_tag = os.path.splitext(os.path.basename(md_path))[0].replace(' ', '_')
+
     media_files = {}
     all_media = set()
     for front, back, _ in cards:
@@ -139,9 +142,11 @@ def main(md_path, output_apkg, verbose=False):
     for i, (front, back, tags) in enumerate(cards, 1):
         front_html = replace_images_with_anki(front, media_files)
         back_html = replace_images_with_anki(back, media_files)
-        deck.add_note(genanki.Note(model=model, fields=[front_html, back_html], tags=tags))
+        # Add filename tag to tags list
+        tags_with_filename = tags + [filename_tag]
+        deck.add_note(genanki.Note(model=model, fields=[front_html, back_html], tags=tags_with_filename))
         if verbose:
-            print(f"Added card {i}: Front length {len(front_html)}, Back length {len(back_html)}, Tags: {tags}")
+            print(f"Added card {i}: Front length {len(front_html)}, Back length {len(back_html)}, Tags: {tags_with_filename}")
             front_imgs = list(extract_image_paths(front))
             back_imgs = list(extract_image_paths(back))
             if front_imgs:
