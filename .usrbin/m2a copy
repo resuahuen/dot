@@ -56,6 +56,52 @@ def parse_cards(md):
 
 
 
+def extract_heading_tags(md):
+    """
+    Returns a list of (card_start_idx, tags) for each card.
+    Each tags is a list of headings (from top to bottom) in effect at that position.
+    """
+    lines = md.splitlines()
+    heading_stack = []
+    card_indices = []
+    tags_per_card = []
+    idx = 0
+    for i, line in enumerate(lines):
+        heading_match = re.match(r'^(#+)\s+(.*)', line)
+        if heading_match:
+            level = len(heading_match.group(1))
+            text = heading_match.group(2).strip()
+            # Adjust stack to current level
+            heading_stack = heading_stack[:level-1]
+            heading_stack.append(text)
+        if line.strip().startswith('#kk'):
+            card_indices.append(i)
+            tags_per_card.append(list(heading_stack))
+    return tags_per_card
+
+def parse_cards_with_tags(md):
+    tags_per_card = extract_heading_tags(md)
+    cards = []
+    blocks = md.split('#kk')
+    tag_idx = 0
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        parts = re.split(r'\s*%\s*', block, maxsplit=1)
+        if len(parts) < 2:
+            continue
+        front = parts[0].strip()
+        back = parts[1].strip()
+        back_parts = re.split(r'\s*%\s*', back, maxsplit=1)
+        back = back_parts[0].strip()
+        if front and back:
+            # Replace spaces with underscores in tags
+            tags = [t.replace(' ', '_') for t in tags_per_card[tag_idx]] if tag_idx < len(tags_per_card) else []
+            cards.append((front, back, tags))
+        tag_idx += 1
+    return cards
+
 def main(md_path, output_apkg, verbose=False):
     if verbose:
         print(f"Reading markdown file: {md_path}")
@@ -63,13 +109,16 @@ def main(md_path, output_apkg, verbose=False):
         md = f.read()
 
     md = convert_latex(md)
-    cards = parse_cards(md)
+    cards = parse_cards_with_tags(md)
     if verbose:
         print(f"Found {len(cards)} cards.")
 
+    # Get filename (without extension), replace spaces with underscores
+    filename_tag = os.path.splitext(os.path.basename(md_path))[0].replace(' ', '_')
+
     media_files = {}
     all_media = set()
-    for front, back in cards:
+    for front, back, _ in cards:
         all_media |= extract_image_paths(front)
         all_media |= extract_image_paths(back)
 
@@ -79,10 +128,14 @@ def main(md_path, output_apkg, verbose=False):
     model = genanki.Model(
         1607392319,
         'Simple Model',
-        fields=[{'name': 'Front'}, {'name': 'Back'}],
+        fields=[
+            {'name': 'Front'},
+            {'name': 'Back'},
+            {'name': 'Tags'},  # <-- Add this line
+        ],
         templates=[{
             'name': 'Card 1',
-            'qfmt': '{{Front}}',
+            'qfmt': '{{Tags}}<br><br>{{Front}}',  # <-- Show tags on the front
             'afmt': '{{Back}}',
         }],
     )
@@ -90,12 +143,18 @@ def main(md_path, output_apkg, verbose=False):
     deck = genanki.Deck(2059400110, 'My Deck')
     media_list = []
 
-    for i, (front, back) in enumerate(cards, 1):
+    for i, (front, back, tags) in enumerate(cards, 1):
         front_html = replace_images_with_anki(front, media_files)
         back_html = replace_images_with_anki(back, media_files)
-        deck.add_note(genanki.Note(model=model, fields=[front_html, back_html]))
+        tags_with_filename = tags + [filename_tag]
+        tags_field = ' '.join(tags_with_filename)  # Join tags for display
+        deck.add_note(genanki.Note(
+            model=model,
+            fields=[front_html, back_html, tags_field],  # Pass tags as a field
+            tags=tags_with_filename  # Still pass tags for Anki's tag system
+        ))
         if verbose:
-            print(f"Added card {i}: Front length {len(front_html)}, Back length {len(back_html)}")
+            print(f"Added card {i}: Front length {len(front_html)}, Back length {len(back_html)}, Tags: {tags_with_filename}")
             front_imgs = list(extract_image_paths(front))
             back_imgs = list(extract_image_paths(back))
             if front_imgs:
@@ -109,9 +168,7 @@ def main(md_path, output_apkg, verbose=False):
                 print(f"Including media: {src}")
         elif verbose:
             print(f"Warning: Media file not found: {src}")
-    # genanki.Package(deck, media_files=media_list).write_to_file(output_apkg)
-    # print(f"Deck written to {output_apkg}")
-    # Write to a local temp file, then move to the desired output location
+
     import tempfile
     local_output = '/tmp/output.apkg'
     genanki.Package(deck, media_files=media_list).write_to_file(local_output)

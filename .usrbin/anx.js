@@ -94,6 +94,9 @@ let imageCounter = 1;
 // Define the markdown output path based on the PDF file path
 const markdownOutputPath = process.argv[5];
 
+// Sort annotations by y-coordinate, descending (top-to-bottom)
+annotations.sort((a, b) => b.y - a.y);
+
 // Iterate through the annotations to process each one
 annotations.forEach(annotation => {
   // const pageNumber = annotation.page;

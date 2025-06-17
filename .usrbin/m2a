@@ -10,6 +10,9 @@ import base64
 import shutil
 import argparse
 
+def is_cloze(text):
+    return bool(re.search(r'{{c\d+::.+?}}', text))
+
 def convert_latex(md):
     # Convert $$...$$ to \[...\]
     md = re.sub(r'\$\$(.+?)\$\$', r'\\[\1\\]', md, flags=re.DOTALL)
@@ -90,13 +93,12 @@ def parse_cards_with_tags(md):
             continue
         parts = re.split(r'\s*%\s*', block, maxsplit=1)
         if len(parts) < 2:
-            continue
+            continue  # skip if not both delimiters present
         front = parts[0].strip()
         back = parts[1].strip()
         back_parts = re.split(r'\s*%\s*', back, maxsplit=1)
         back = back_parts[0].strip()
-        if front and back:
-            # Replace spaces with underscores in tags
+        if front:  # <-- allow empty back
             tags = [t.replace(' ', '_') for t in tags_per_card[tag_idx]] if tag_idx < len(tags_per_card) else []
             cards.append((front, back, tags))
         tag_idx += 1
@@ -140,6 +142,23 @@ def main(md_path, output_apkg, verbose=False):
         }],
     )
 
+    cloze_model = genanki.Model(
+        998877661,
+        'Cloze Model',
+        fields=[
+            {'name': 'Text'},
+            {'name': 'BackExtra'},
+        ],
+        templates=[
+            {
+                'name': 'Cloze Card',
+                'qfmt': '{{cloze:Text}}',
+                'afmt': '{{cloze:Text}}<br>{{BackExtra}}',
+            },
+        ],
+        model_type=genanki.Model.CLOZE,
+    )
+
     deck = genanki.Deck(2059400110, 'My Deck')
     media_list = []
 
@@ -147,12 +166,23 @@ def main(md_path, output_apkg, verbose=False):
         front_html = replace_images_with_anki(front, media_files)
         back_html = replace_images_with_anki(back, media_files)
         tags_with_filename = tags + [filename_tag]
-        tags_field = ' '.join(tags_with_filename)  # Join tags for display
-        deck.add_note(genanki.Note(
-            model=model,
-            fields=[front_html, back_html, tags_field],  # Pass tags as a field
-            tags=tags_with_filename  # Still pass tags for Anki's tag system
-        ))
+        tags_field = ' '.join(tags_with_filename)
+
+        if is_cloze(front_html):
+            # Cloze model expects fields: [Text, BackExtra]
+            note = genanki.Note(
+                model=cloze_model,
+                fields=[front_html, back_html],
+                tags=tags_with_filename
+            )
+        else:
+            # Basic model expects fields: [Front, Back, Tags]
+            note = genanki.Note(
+                model=model,
+                fields=[front_html, back_html, tags_field],
+                tags=tags_with_filename
+            )
+        deck.add_note(note)
         if verbose:
             print(f"Added card {i}: Front length {len(front_html)}, Back length {len(back_html)}, Tags: {tags_with_filename}")
             front_imgs = list(extract_image_paths(front))
