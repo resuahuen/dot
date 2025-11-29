@@ -52,9 +52,22 @@ def embed_images_inline(md_text: str, md_path: Path):
             p = Path(target_token)
             img_path = p.resolve() if p.is_absolute() else (md_path.parent / target_token).resolve()
 
+        # If the straightforward resolution failed, try ancestors of the markdown
+        # file's directory. This handles cases where images live in a sibling or
+        # higher-level folder (for example `.../mos/sld/img` while the markdown
+        # is in `.../mos/sld/sub/`). Try resolving the target against each
+        # ancestor directory until a match is found.
         if not img_path.exists():
-            print(f"warning: image not found: {img_path}", file=sys.stderr)
-            return m.group(0)
+            found = False
+            for ancestor in (md_path.parent, *md_path.parents):
+                candidate = (ancestor / target_token).resolve()
+                if candidate.exists():
+                    img_path = candidate
+                    found = True
+                    break
+            if not found:
+                print(f"warning: image not found: {img_path}", file=sys.stderr)
+                return m.group(0)
 
         # Guess MIME type
         mime, _ = mimetypes.guess_type(str(img_path))
