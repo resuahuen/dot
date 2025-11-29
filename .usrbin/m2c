@@ -53,20 +53,21 @@ def embed_images_inline(md_text: str, md_path: Path):
             img_path = p.resolve() if p.is_absolute() else (md_path.parent / target_token).resolve()
 
         # If the straightforward resolution failed, try ancestors of the markdown
-        # file's directory. This handles cases where images live in a sibling or
-        # higher-level folder (for example `.../mos/sld/img` while the markdown
-        # is in `.../mos/sld/sub/`). Try resolving the target against each
-        # ancestor directory until a match is found.
+        # file's directory. Log all attempted paths.
+        attempted_paths = [str(img_path)]
+        found = False
         if not img_path.exists():
-            found = False
             for ancestor in (md_path.parent, *md_path.parents):
                 candidate = (ancestor / target_token).resolve()
+                attempted_paths.append(str(candidate))
                 if candidate.exists():
                     img_path = candidate
                     found = True
                     break
             if not found:
-                print(f"warning: image not found: {img_path}", file=sys.stderr)
+                print(f"warning: image not found. Tried paths:", file=sys.stderr)
+                for p in attempted_paths:
+                    print(f"  {p}", file=sys.stderr)
                 return m.group(0)
 
         # Guess MIME type
