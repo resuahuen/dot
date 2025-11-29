@@ -58,10 +58,18 @@ def embed_images_inline(md_text: str, md_path: Path):
         found = False
         if not img_path.exists():
             for ancestor in (md_path.parent, *md_path.parents):
+                # Try direct ancestor/filename
                 candidate = (ancestor / target_token).resolve()
                 attempted_paths.append(str(candidate))
                 if candidate.exists():
                     img_path = candidate
+                    found = True
+                    break
+                # Try ancestor/img/filename
+                img_candidate = (ancestor / "img" / Path(target_token).name).resolve()
+                attempted_paths.append(str(img_candidate))
+                if img_candidate.exists():
+                    img_path = img_candidate
                     found = True
                     break
             if not found:
