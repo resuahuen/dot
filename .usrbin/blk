@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""
+blk.py - bulk runner
+
+Usage examples:
+    blk.py --dir pdf ./anx                 # run ./anx for every .pdf file in cwd (non-recursive)
+    blk.py --all md ./someScript           # run ./someScript for every .md file recursively
+    blk.py file1.pdf file2.pdf pdf ./anx   # run ./anx for file1.pdf and file2.pdf
+    blk.py /path/to/dir md ./script        # run ./script for every file with .md in the dir (non-recursive)
+
+Syntax: the second-to-last positional argument is the file type (extension without dot),
+and the last positional argument is the script to execute. Use `--` to separate extra
+arguments that should be forwarded to the executed script.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from typing import Iterable, List
+
+
+def find_files_in_dir(directory: str, recursive: bool = False) -> List[str]:
+    """Return list of files in `directory`.
+
+    This intentionally does NOT inspect file contents — it only lists files.
+    It does not filter by extension so the wrapper works as a generic moderator.
+    """
+    directory = os.path.abspath(directory)
+    results: List[str] = []
+    if recursive:
+        for root, _, files in os.walk(directory):
+            for f in files:
+                results.append(os.path.join(root, f))
+    else:
+        for f in os.listdir(directory):
+            p = os.path.join(directory, f)
+            if os.path.isfile(p):
+                results.append(p)
+    results.sort()
+    return results
+
+
+def find_cfg_root(start_path: str) -> str | None:
+    """Walk upward from start_path and return the directory containing `anx.cfg`, or None."""
+    p = os.path.abspath(start_path)
+    if os.path.isfile(p):
+        p = os.path.dirname(p)
+    while True:
+        cfg = os.path.join(p, 'anx.cfg')
+        if os.path.isfile(cfg):
+            return p
+        parent = os.path.dirname(p)
+        if parent == p:
+            break
+        p = parent
+    return None
+
+
+def path_in_boundary(path: str, boundary: str | None) -> bool:
+    if boundary is None:
+        return True
+    try:
+        common = os.path.commonpath([os.path.abspath(path), os.path.abspath(boundary)])
+        return common == os.path.abspath(boundary)
+    except ValueError:
+        return False
+
+
+def resolve_script(script: str) -> str | None:
+    # If script path exists as given, return absolute path
+    if os.path.exists(script):
+        return os.path.abspath(script)
+    # Otherwise try to find in PATH
+    found = shutil.which(script)
+    if found:
+        return found
+    return None
+
+
+def run_script_for_files(script_path: str, files: Iterable[str], extra_args: List[str]) -> int:
+    failures = 0
+    script_is_py = script_path.lower().endswith('.py')
+    for f in files:
+        print(f"\n== Processing: {f}")
+        if script_is_py:
+            cmd = [sys.executable, script_path, f] + extra_args
+        else:
+            cmd = [script_path, f] + extra_args
+
+        try:
+            ret = subprocess.run(cmd)
+            if ret.returncode != 0:
+                print(f"--> Script exited with code {ret.returncode} for file: {f}")
+                failures += 1
+        except FileNotFoundError:
+            print(f"ERROR: Unable to execute script: {script_path}")
+            return len(list(files)) or 1
+        except KeyboardInterrupt:
+            print("Interrupted by user")
+            return failures + 1
+
+    return failures
+
+
+def main(argv: List[str] | None = None) -> int:
+    argv = argv if argv is not None else sys.argv[1:]
+
+    parser = argparse.ArgumentParser(prog='blk', description='Bulk-run a script for files by type')
+    parser.add_argument('--dir', action='store_true', help='Process current directory (non-recursive)')
+    parser.add_argument('--all', action='store_true', help='Process current directory recursively')
+    parser.add_argument('rest', nargs=argparse.REMAINDER, help='Targets followed by <type> <script> and optionally -- <extra args>')
+
+    args = parser.parse_args(argv)
+
+    # Split rest by '--' so user can forward extra args after it
+    rest = args.rest or []
+    if '--' in rest:
+        idx = rest.index('--')
+        main = rest[:idx]
+        extra_args = rest[idx+1:]
+    else:
+        main = rest
+        extra_args: List[str] = []
+
+    def matches_type(path: str, filetype: str) -> bool:
+        if filetype.lower() == 'all':
+            return True
+        ext = os.path.splitext(path)[1].lstrip('.').lower()
+        return ext == filetype.lower()
+
+    # Option C: implicitly stop scanning above a directory that contains `anx.cfg`.
+    # Find the nearest `anx.cfg` from cwd and treat that directory as the boundary.
+    cfg_root = find_cfg_root(os.getcwd())
+    if cfg_root:
+        print(f"Using cfg boundary at: {cfg_root} — scanning will not include files above this directory")
+
+    if args.dir or args.all:
+        if len(main) < 2:
+            parser.error('Usage: blk --dir|--all <type> <script> [-- extra args]')
+        filetype = main[0]
+        script = main[1]
+        target_dir = os.getcwd()
+        recursive = bool(args.all)
+        files = [p for p in find_files_in_dir(target_dir, recursive=recursive) if matches_type(p, filetype) and path_in_boundary(p, cfg_root)]
+    else:
+        # Expect: blk <target1> [<target2> ...] <type> <script> [-- extra args]
+        if len(main) < 2:
+            parser.error('Usage: blk <target1> [<target2> ...] <type> <script> [-- extra args]')
+        filetype = main[-2]
+        script = main[-1]
+        targets = main[:-2]
+        files = []
+        for target in targets:
+            if os.path.isfile(target):
+                if matches_type(target, filetype) and path_in_boundary(target, cfg_root):
+                    files.append(os.path.abspath(target))
+                else:
+                    print(f"Skipping {target}: not matching type or outside cfg boundary")
+            elif os.path.isdir(target):
+                files.extend([p for p in find_files_in_dir(target, recursive=False) if matches_type(p, filetype) and path_in_boundary(p, cfg_root)])
+            else:
+                parser.error(f'Target is not a file or directory: {target}')
+
+    if not files:
+        print('No files found to process.')
+        return 0
+
+    script_path = resolve_script(script)
+    if not script_path:
+        print(f'ERROR: Could not find script: {script}')
+        return 2
+
+    print(f"Found {len(files)} file(s) of type '{filetype}'. Running '{script}' on each...")
+    failures = run_script_for_files(script_path, files, extra_args)
+
+    if failures:
+        print(f"\nCompleted with {failures} failure(s)")
+        return 3
+    print('\nCompleted successfully for all files')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

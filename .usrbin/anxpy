@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""
+anxpy.py - single-file processor for anx pipeline
+
+Designed to be invoked by `blk.py` for bulk runs. It performs the per-file
+work: find `anx.cfg`, resolve defaults, extract pages, call `pdfannots2json`,
+and invoke `anx.js` (Node) to produce markdown. It intentionally does NOT
+perform directory scanning — that's `blk.py`'s job.
+
+Usage:
+  anxpy.py /path/to/file.pdf [--image-output-path PATH] [--image-format fmt] [-y]
+
+This mirrors the options used by the original `anx` shell script but handles
+only one PDF at a time.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+from typing import Optional
+
+
+HOME = os.path.expanduser('~')
+
+
+def find_cfg(start_dir: str) -> Optional[str]:
+    p = os.path.abspath(start_dir)
+    while True:
+        cfg = os.path.join(p, 'anx.cfg')
+        if os.path.isfile(cfg):
+            return cfg
+        parent = os.path.dirname(p)
+        if parent == p:
+            break
+        p = parent
+    # fallback: check cwd
+    if os.path.isfile(os.path.join(os.getcwd(), 'anx.cfg')):
+        return os.path.join(os.getcwd(), 'anx.cfg')
+    return None
+
+
+def read_cfg(cfg_file: str) -> tuple[Optional[str], Optional[str]]:
+    image_output_path = None
+    link_style = None
+    try:
+        with open(cfg_file, 'r', encoding='utf-8') as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if line.startswith('image_output_path='):
+                    image_output_path = line.split('=', 1)[1].strip()
+                elif line.startswith('link_style='):
+                    link_style = line.split('=', 1)[1].strip()
+    except Exception:
+        pass
+
+    if image_output_path:
+        # If relative path, resolve relative to cfg directory
+        cfg_dir = os.path.dirname(os.path.abspath(cfg_file))
+        image_output_path = os.path.abspath(os.path.join(cfg_dir, image_output_path))
+
+    return image_output_path, link_style
+
+
+def prompt_overwrite(path: str) -> bool:
+    if not os.path.exists(path):
+        return True
+    ans = input(f"Overwrite extracted annotations at '{path}'? [y/N]: ").strip().lower() or 'n'
+    return ans == 'y'
+
+
+def run(cmd, **kwargs):
+    print('> ' + ' '.join(map(str, cmd)))
+    return subprocess.run(cmd, **kwargs)
+
+
+def main(argv=None):
+    argv = argv if argv is not None else sys.argv[1:]
+    parser = argparse.ArgumentParser(prog='anxpy', description='Process a single PDF for anx annotations')
+    parser.add_argument('pdf', help='PDF file to process')
+    parser.add_argument('--image-output-path', help='Directory to write extracted images')
+    parser.add_argument('--image-format', default='png', help='Image format for extracted images (default: png)')
+    parser.add_argument('-y', action='store_true', dest='yes', help='Overwrite markdown without prompting')
+    parser.add_argument('--link-style', help='Link style to pass to anx.js (overrides cfg)')
+
+    args = parser.parse_args(argv)
+
+    pdf_file = args.pdf
+    if not os.path.isfile(pdf_file):
+        print(f"Error: PDF not found: {pdf_file}")
+        return 2
+
+    # Find cfg from the pdf's directory upward
+    cfg = find_cfg(os.path.dirname(os.path.abspath(pdf_file)))
+    image_output_default = None
+    cfg_link_style = None
+    if cfg:
+        image_output_default, cfg_link_style = read_cfg(cfg)
+
+    image_output_path = args.image_output_path or image_output_default
+    link_style = args.link_style or cfg_link_style or ''
+
+    image_format = args.image_format or 'png'
+
+    local_tmp_dir = os.path.join(HOME, 'anx_tmp')
+    os.makedirs(local_tmp_dir, exist_ok=True)
+
+    temp_md_path = os.path.join(local_tmp_dir, 'tmp.md')
+    # reset temp md
+    open(temp_md_path, 'w', encoding='utf-8').close()
+
+    original_pdf = os.path.abspath(pdf_file)
+    local_pdf = os.path.join(local_tmp_dir, os.path.basename(pdf_file))
+    shutil.copy2(original_pdf, local_pdf)
+
+    # Determine markdown output path
+    markdown_output_path = os.path.splitext(original_pdf)[0] + '.md'
+    if os.path.exists(markdown_output_path) and not args.yes:
+        if not prompt_overwrite(markdown_output_path):
+            print('Skipping because user chose not to overwrite.')
+            return 0
+    else:
+        # create/clear
+        open(markdown_output_path, 'w', encoding='utf-8').close()
+
+    # Ensure image output dir exists
+    if image_output_path:
+        os.makedirs(image_output_path, exist_ok=True)
+    else:
+        pdf_dir = os.path.dirname(original_pdf)
+        image_output_path = os.path.join(pdf_dir, 'img')
+        os.makedirs(image_output_path, exist_ok=True)
+
+    # Get number of pages using pdfinfo
+    try:
+        p = run(['pdfinfo', local_pdf], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if p.returncode != 0:
+            print('pdfinfo failed:', p.stderr)
+            return 3
+        pages = 0
+        for line in p.stdout.splitlines():
+            if line.startswith('Pages:'):
+                pages = int(line.split(':', 1)[1].strip())
+                break
+    except FileNotFoundError:
+        print('Error: pdfinfo is not installed or not found in PATH')
+        return 4
+
+    # locate anx.js near this script if possible
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    anx_js_path = os.path.join(script_dir, 'anx.js')
+    if not os.path.isfile(anx_js_path):
+        anx_js_path = shutil.which('anx.js') or shutil.which('anx') or None
+
+    for page in range(1, pages + 1):
+        page_pdf = os.path.join(local_tmp_dir, f'page_{page}.pdf')
+        try:
+            ret = run(['pdftk', local_pdf, 'cat', str(page), 'output', page_pdf], check=True)
+        except FileNotFoundError:
+            print('Error: pdftk not found in PATH')
+            return 5
+        except subprocess.CalledProcessError as e:
+            print('pdftk failed:', e)
+            continue
+
+        # call pdfannots2json
+        try:
+            p = run(['pdfannots2json', page_pdf, '--image-output-path', image_output_path, '--image-format', image_format], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        except FileNotFoundError:
+            print('Error: pdfannots2json not found in PATH')
+            return 6
+
+        annotations = p.stdout.strip() if p.stdout is not None else ''
+        if annotations and annotations != '{}' and annotations != 'null':
+            # call anx.js (Node) if available
+            if anx_js_path:
+                cmd = ['node', anx_js_path, annotations, original_pdf, image_output_path, temp_md_path, str(page), link_style, markdown_output_path]
+                try:
+                    run(cmd)
+                except Exception as e:
+                    print('Error running anx.js:', e)
+            else:
+                print('anx.js not found; skipping node processing for annotations')
+        else:
+            print(f'No content for page {page} in {original_pdf}. Skipping...')
+
+        try:
+            os.remove(page_pdf)
+        except OSError:
+            pass
+
+    # copy temp md to final
+    try:
+        shutil.copy2(temp_md_path, markdown_output_path)
+    except Exception:
+        print('Warning: could not copy temporary markdown to target')
+
+    # cleanup
+    try:
+        os.remove(local_pdf)
+    except OSError:
+        pass
+
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
