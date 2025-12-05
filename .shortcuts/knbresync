@@ -1,3 +1,0 @@
-#!/bin/bash
-rclone bisync /sdcard/000/knb/ gdrive:knb/ -v --resync
-sleep 10
