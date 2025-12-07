@@ -100,24 +100,43 @@ def embed_images_inline(md_text: str, md_path: Path):
 def process_markdown(in_file: Path, out_file: Path):
     md_text = in_file.read_text(encoding="utf-8")
     new_md = embed_images_inline(md_text, in_file)
-    # If the requested output is a notebook, wrap the inlined markdown
-    # into a single-markdown-cell .ipynb file (Colab-friendly).
+    # If the requested output is a notebook, extract each base64 image into
+    # a separate markdown cell (Colab-friendly, easy to view/manage images).
     if out_file.suffix == '.ipynb':
         import json
 
-        # Split lines preserving newline endings as a list
-        lines = [ln + '\n' for ln in new_md.splitlines()]
-
-        nb = {
-            "cells": [
-                {
+        cells = []
+        
+        # Split markdown by HTML img tags to separate text and images
+        # Pattern: <img alt="..." src="data:..." />
+        img_pattern = re.compile(r'(<img [^>]*src="data:[^"]*"[^>]*/?>)')
+        parts = img_pattern.split(new_md)
+        
+        for part in parts:
+            if not part.strip():
+                # Skip empty parts
+                continue
+            
+            if part.startswith('<img'):
+                # This is an image tag; put it in its own markdown cell
+                lines = [part.strip() + '\n']
+                cells.append({
                     "cell_type": "markdown",
-                    "metadata": {
-                        "language": "markdown"
-                    },
+                    "metadata": {"language": "markdown"},
                     "source": lines
-                }
-            ],
+                })
+            else:
+                # This is text; put it in a markdown cell
+                lines = [ln + '\n' for ln in part.splitlines() if ln.strip()]
+                if lines:
+                    cells.append({
+                        "cell_type": "markdown",
+                        "metadata": {"language": "markdown"},
+                        "source": lines
+                    })
+        
+        nb = {
+            "cells": cells,
             "metadata": {},
             "nbformat": 4,
             "nbformat_minor": 5
