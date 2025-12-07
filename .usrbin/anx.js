@@ -91,6 +91,51 @@ function replacePageLinks(text, pageNumber, pdfFilePath) {
 let markdownContent = '';
 let imageCounter = 1;
 
+// --- Ensure annotations are ordered by vertical (y) coordinate ---
+// Try several common fields that might contain a y value and fall back
+// to preserving original order when no coordinate is available.
+function extractYCoordinate(a) {
+  // Common shapes: rect arrays [x1, y1, x2, y2]
+  if (a.rect && Array.isArray(a.rect) && a.rect.length >= 2) {
+    return Number(a.rect[1]);
+  }
+  // bbox as array
+  if (a.bbox && Array.isArray(a.bbox) && a.bbox.length >= 2) {
+    return Number(a.bbox[1]);
+  }
+  // bbox as object with top/bottom/y
+  if (a.bbox && typeof a.bbox === 'object') {
+    if (typeof a.bbox.y === 'number') return a.bbox.y;
+    if (typeof a.bbox.top === 'number') return a.bbox.top;
+    if (typeof a.bbox.y0 === 'number') return a.bbox.y0;
+    if (typeof a.bbox.y1 === 'number') return a.bbox.y1;
+  }
+  // direct properties
+  if (typeof a.y === 'number') return a.y;
+  if (typeof a.y0 === 'number') return a.y0;
+  if (typeof a.y1 === 'number') return a.y1;
+
+  return null;
+}
+
+// Attach original index and computed y, then stable-sort by y (descending => top-to-bottom)
+for (let i = 0; i < annotations.length; i++) {
+  annotations[i].__origIndex = i;
+  annotations[i].__ycoord = extractYCoordinate(annotations[i]);
+}
+
+annotations.sort((a, b) => {
+  const ay = a.__ycoord;
+  const by = b.__ycoord;
+  if (ay == null && by == null) return a.__origIndex - b.__origIndex;
+  if (ay == null) return 1; // put a after b
+  if (by == null) return -1; // put b after a
+  // PDF coordinate system usually has origin at bottom-left; higher y means higher on page.
+  // We want top-to-bottom visual order => sort by descending y
+  if (by !== ay) return by - ay;
+  return a.__origIndex - b.__origIndex;
+});
+
 // Define the markdown output path based on the PDF file path
 const markdownOutputPath = process.argv[5];
 
