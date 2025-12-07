@@ -72,9 +72,13 @@ function processAnnotationText(annotation, pageNumber, pdfFilePath) {
   return '';
 }
 
-// Function to replace '\\' (escaped newline) with actual line break tag (<br>)
+// Function to replace literal '\n' sequences and '\\' with actual line breaks or <br>
 function replaceEscapedNewlinesWithLineBreaks(input) {
-  return input.replace(/\\\\/g, '<br>'); // Replace \\ with <br> for line breaks
+  // Replace literal \n (escaped newline) with actual newline character
+  let result = input.replace(/\\n/g, '\n');
+  // Replace \\ with <br> for line breaks
+  result = result.replace(/\\\\/g, '<br>');
+  return result;
 }
 
 // Function to replace [](lnk) labels with page links
