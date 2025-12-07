@@ -120,13 +120,14 @@ def main(argv=None):
 
     # Determine markdown output path
     markdown_output_path = os.path.splitext(original_pdf)[0] + '.md'
-    if os.path.exists(markdown_output_path) and not args.yes:
-        if not prompt_overwrite(markdown_output_path):
-            print('Skipping because user chose not to overwrite.')
-            return 0
-    else:
-        # create/clear
-        open(markdown_output_path, 'w', encoding='utf-8').close()
+    # If target exists and user hasn't passed -y, prompt now and exit if they decline.
+    will_overwrite = False
+    if os.path.exists(markdown_output_path):
+        if not args.yes:
+            if not prompt_overwrite(markdown_output_path):
+                print('Skipping because user chose not to overwrite.')
+                return 0
+        will_overwrite = True
 
     # Ensure image output dir exists
     if image_output_path:
@@ -194,9 +195,12 @@ def main(argv=None):
         except OSError:
             pass
 
-    # copy temp md to final
+    # copy temp md to final only if it contains content (avoid creating empty .md files)
     try:
-        shutil.copy2(temp_md_path, markdown_output_path)
+        if os.path.getsize(temp_md_path) > 0:
+            shutil.copy2(temp_md_path, markdown_output_path)
+        else:
+            print('No annotations produced — not creating or overwriting markdown file.')
     except Exception:
         print('Warning: could not copy temporary markdown to target')
 
