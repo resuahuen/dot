@@ -122,8 +122,40 @@ def main(argv: List[str] | None = None) -> int:
         main = rest[:idx]
         extra_args = rest[idx+1:]
     else:
+        # No explicit '--' provided. We'll allow forwarding flags without it.
+        # For the `--dir`/`--all` forms, any tokens after the required
+        # <type> <script> are considered extra args. For the positional
+        # form with targets, try to locate the script token by resolving
+        # candidates in `main`; tokens after the script are treated as
+        # extra args.
         main = rest
         extra_args: List[str] = []
+        if main:
+            if args.dir or args.all:
+                # Expect at least: <type> <script> ; everything after is extra args
+                if len(main) > 2:
+                    extra_args = main[2:]
+                    main = main[:2]
+            else:
+                # Try to find which token is the script by resolving it.
+                # We require at least two tokens (filetype + script) after targets.
+                found_idx = None
+                for i in range(1, len(main)):
+                    candidate = main[i]
+                    # candidate is the script if it resolves in PATH or exists as given
+                    if resolve_script(candidate):
+                        found_idx = i
+                        break
+                if found_idx is not None:
+                    # filetype should be the token immediately before script
+                    if found_idx < 1:
+                        parser.error('Usage: blk <target1> [<target2> ...] <type> <script> [extra args]')
+                    filetype_token = main[found_idx-1]
+                    targets_candidate = main[:found_idx-1]
+                    extra_args = main[found_idx+1:]
+                    # rewrite main to match downstream expectations: targets + filetype + script
+                    main = targets_candidate + [filetype_token, main[found_idx]]
+                # else: fall back to original behaviour (last two tokens are type/script)
 
     def matches_type(path: str, filetype: str) -> bool:
         if filetype.lower() == 'all':
