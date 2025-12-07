@@ -127,9 +127,14 @@ def process_markdown(in_file: Path, out_file: Path):
                 })
             else:
                 # This is text; put it in a markdown cell with extra linebreak at end
-                lines = [ln + '\n' for ln in part.splitlines() if ln.strip()]
+                # Preserve all lines including blank ones to maintain original formatting
+                lines = [ln + '\n' for ln in part.splitlines()]
+                # Remove trailing blank lines, then add extra linebreak for separation
+                while lines and lines[-1].strip() == '':
+                    lines.pop()
                 if lines:
                     # Add extra linebreak after annotation for visual separation
+                    lines.append('\n')
                     lines.append('\n')
                     cells.append({
                         "cell_type": "markdown",
