@@ -7,6 +7,6 @@ cp -r ./dot/.usrbin ./dot/.bashrc ./dot/.vim $HOME/
 source $HOME/.bashrc
 
 # install dependencies
-apt install pdftk-y
+apt install pdftk -y
 apt install poppler-utils -y
 pip install genanki
