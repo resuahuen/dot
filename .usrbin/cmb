@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+import sys
+import os
+from pathlib import Path
+
+def combine_md_files(md_files, output_file):
+    with open(output_file, 'w', encoding='utf-8') as outfile:
+        for md_file in md_files:
+            with open(md_file, 'r', encoding='utf-8') as infile:
+                outfile.write(infile.read())
+                outfile.write('\n')
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        print("Usage: cmb md1.md [md2.md ...] output.md")
+        sys.exit(1)
+    # --all: combine .md files per directory recursively from cwd
+    if len(args) == 1 and args[0] == '--all':
+        cwd = Path.cwd()
+        count = 0
+        for dirpath, dirnames, filenames in os.walk(cwd):
+            md_files = sorted([str(Path(dirpath) / f) for f in filenames if f.endswith('.md')])
+            if md_files:
+                folder_name = Path(dirpath).name
+                output_file = str(Path(dirpath) / f"{folder_name}.cmb.md")
+                combine_md_files(md_files, output_file)
+                print(f"Combined {len(md_files)} files into {output_file}")
+                count += 1
+        if count == 0:
+            print("No markdown files found in this directory tree.")
+        sys.exit(0)
+
+    # blk compatibility: if called as blk --dir md com
+    if len(args) == 1 and args[0] == '--dir':
+        cwd = Path.cwd()
+        folder_name = cwd.name
+        output_file = f"{folder_name}.cmb.md"
+        md_files = sorted([str(p) for p in cwd.glob('*.md')])
+        if not md_files:
+            print("No markdown files found in current directory.")
+            sys.exit(1)
+        combine_md_files(md_files, output_file)
+        print(f"Combined {len(md_files)} files into {output_file}")
+        sys.exit(0)
+    # Standard usage: com md1.md md2.md ... output.md
+    if len(args) < 2:
+        print("Usage: cmb md1.md [md2.md ...] output.md")
+        sys.exit(1)
+    *md_files, output_file = args
+    # If output_file does not end with .cmb.md, append it
+    if not output_file.endswith('.cmb.md'):
+        output_file = output_file.rsplit('.', 1)[0] + '.cmb.md'
+    for md_file in md_files:
+        if not os.path.isfile(md_file):
+            print(f"File not found: {md_file}")
+            sys.exit(1)
+    combine_md_files(md_files, output_file)
+    print(f"Combined {len(md_files)} files into {output_file}")
+
+if __name__ == "__main__":
+    main()
