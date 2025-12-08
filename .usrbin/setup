@@ -1,6 +1,0 @@
-#!/bin/bash
-
-cp -r ../.usrbin ../.bashrc ../.vim $HOME/
-
-source $HOME/.bashrc
-source ~/.bashrc

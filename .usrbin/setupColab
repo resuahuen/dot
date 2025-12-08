@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cp -r ./dot/.usrbin ./dot/.bashrc ./dot/.vim $HOME/
+
+source $HOME/.bashrc
