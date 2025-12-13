@@ -112,7 +112,7 @@ def replace_images_with_basename(md_text: str):
     return re.sub(r'!\[.*?\]\((.*?)\)', repl, md_text)
 
 
-def process_files(md_files, output_apkg, verbose=False, search_all=False):
+def process_files(md_files, output_apkg, verbose=False, search_all=False, base_root: Path | None = None):
     # Build decks keyed by hierarchical deck name
     deck_map: dict[str, genanki.Deck] = {}
     model = genanki.Model(
@@ -139,16 +139,24 @@ def process_files(md_files, output_apkg, verbose=False, search_all=False):
         cards = parse_cards(text)
         md_dir = mdp.parent
 
-        # determine deck name using nearest anx.cfg as root
+        # determine deck name using provided base_root (preferred), then nearest anx.cfg
         cfg_root = find_cfg_root(mdp)
-        try:
-            if cfg_root:
-                rel = md_dir.relative_to(cfg_root)
-                parts = [cfg_root.name] + list(rel.parts)
-            else:
+        parts = []
+        if base_root:
+            try:
+                rel = md_dir.relative_to(base_root)
+                parts = [base_root.name] + list(rel.parts)
+            except Exception:
+                parts = []
+        if not parts:
+            try:
+                if cfg_root:
+                    rel = md_dir.relative_to(cfg_root)
+                    parts = [cfg_root.name] + list(rel.parts)
+                else:
+                    parts = list(md_dir.parts)
+            except Exception:
                 parts = list(md_dir.parts)
-        except Exception:
-            parts = list(md_dir.parts)
 
         # create decks per-directory under the anx.cfg root.
         # Do NOT append the markdown filename so all files in a directory
@@ -265,7 +273,16 @@ def main():
         else:
             base = os.path.splitext(str(p))[0]
             output = base + '.apkg'
-    process_files(md_files, output, verbose=args.verbose, search_all=args.all)
+    # Determine base_root: when --all is used with input '.' or when input equals cwd,
+    # use cwd as the parent deck name per requested behaviour.
+    base_root = None
+    try:
+        if args.all and (str(p.resolve()) == str(Path.cwd().resolve()) or input_arg in ('.', None)):
+            base_root = Path.cwd()
+    except Exception:
+        base_root = None
+
+    process_files(md_files, output, verbose=args.verbose, search_all=args.all, base_root=base_root)
 
 
 if __name__ == '__main__':
