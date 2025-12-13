@@ -155,7 +155,8 @@ def merge_apkgs_for_anx_dir(anx_dir: Path):
 
     # Structures to accumulate
     deck_map = {}  # deck_name -> genanki.Deck
-    model_map = {}  # old_mid_str -> genanki.Model
+    # global dedup map: signature -> genanki.Model
+    global_models_by_sig = {}
     media_paths = []
 
     tmp_root = Path(tempfile.mkdtemp(prefix='collapkg_'))
@@ -185,10 +186,22 @@ def merge_apkgs_for_anx_dir(anx_dir: Path):
             models_json, decks_json = parse_models_from_db(collection_db_path)
             notes = get_notes_from_db(collection_db_path)
 
-            # create genanki models for any models seen
+            # For this apkg, build a local mapping old_mid -> genanki.Model.
+            # Deduplicate models across apkgs by signature (name + field names + template count).
+            local_model_map = {}
             for old_mid, mdef in models_json.items():
-                if old_mid not in model_map:
-                    model_map[old_mid] = model_to_genanki(old_mid, mdef)
+                # build a signature to detect equivalent models
+                mname = mdef.get('name', str(old_mid))
+                flds = mdef.get('flds', [])
+                field_names = [f.get('name', '') for f in flds]
+                tmpls = mdef.get('tmpls', []) or mdef.get('templates', [])
+                sig = f"{mname}|{','.join(field_names)}|{len(tmpls)}"
+                if sig in global_models_by_sig:
+                    local_model_map[str(old_mid)] = global_models_by_sig[sig]
+                else:
+                    mdl = model_to_genanki(old_mid, mdef)
+                    global_models_by_sig[sig] = mdl
+                    local_model_map[str(old_mid)] = mdl
 
             # write media files to tmp and prepare replacements
             prefix = safe_filename(str(apkg.relative_to(anx_dir))).replace('.', '_')
@@ -204,12 +217,14 @@ def merge_apkgs_for_anx_dir(anx_dir: Path):
             # add notes to the deck
             for n in notes:
                 mid = n['mid']
-                if mid not in model_map:
-                    # unknown model: create a simple fallback
-                    fallback = genanki.Model(abs(hash(mid)) % (2 ** 31 - 1), f'Fallback {mid}', fields=[{'name': 'Field1'}], templates=[{'name': 'Card 1', 'qfmt': '{{Field1}}', 'afmt': '{{FrontSide}}'}])
-                    model_map[mid] = fallback
+                # prefer local model mapping for this apkg; fall back to global signature map if necessary
+                if mid in local_model_map:
+                    model = local_model_map[mid]
+                else:
+                    # unknown model id in this apkg: create a simple fallback model
+                    fallback = genanki.Model(abs(hash(str(apkg) + mid)) % (2 ** 31 - 1), f'Fallback {mid}', fields=[{'name': 'Field1'}], templates=[{'name': 'Card 1', 'qfmt': '{{Field1}}', 'afmt': '{{FrontSide}}'}])
+                    model = fallback
 
-                model = model_map[mid]
                 fields = list(n['fields'])
                 # replace media filenames referenced inside fields with new names
                 for i, fld in enumerate(fields):
@@ -219,12 +234,24 @@ def merge_apkgs_for_anx_dir(anx_dir: Path):
                         if orig in fld:
                             fields[i] = fields[i].replace(orig, new)
 
+                # Ensure the number of fields matches the model. Pad with empty strings
+                # or merge extras into the last field if there are too many.
+                if hasattr(model, 'fields') and isinstance(model.fields, list):
+                    desired = len(model.fields)
+                elif hasattr(model, '_fields') and isinstance(model._fields, list):
+                    desired = len(model._fields)
+                else:
+                    desired = 2
+
+                if len(fields) < desired:
+                    fields.extend([''] * (desired - len(fields)))
+                elif len(fields) > desired and desired > 0:
+                    # merge extras into the last field separated by <br>
+                    merged = '<br>'.join(fields[desired-1:])
+                    fields = fields[:desired-1] + [merged]
+
                 tags = n['tags'].split() if n['tags'] else []
-                try:
-                    note = genanki.Note(model=model, fields=fields, tags=tags)
-                except Exception:
-                    # fallback: coerce fields to strings
-                    note = genanki.Note(model=model, fields=[str(x) for x in fields], tags=tags)
+                note = genanki.Note(model=model, fields=fields, tags=tags)
 
                 deck_map[deck_name].add_note(note)
 
