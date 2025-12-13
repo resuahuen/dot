@@ -11,15 +11,12 @@ import argparse
 
 
 def convert_latex(md):
-    # Convert $$...$$ to \[...\]
     md = re.sub(r'\$\$(.+?)\$\$', r'\\[\1\\]', md, flags=re.DOTALL)
-    # Convert $...$ to \(...\)
     md = re.sub(r'\$(.+?)\$', r'\\(\1\\)', md)
     return md
 
 
 def extract_image_paths(md):
-    # Find all ![alt](path) and return set of paths
     return set(re.findall(r'!\[.*?\]\((.*?)\)', md))
 
 
@@ -29,7 +26,6 @@ def image_to_base64(path):
 
 
 def image_to_data_uri(path):
-    """Return a data URI for the image file at path, or None if not readable."""
     try:
         b64 = image_to_base64(path)
         import mimetypes
@@ -42,20 +38,17 @@ def image_to_data_uri(path):
 
 
 def replace_images_with_anki(md, media_sources):
-    # Replace ![alt](path) with an <img src="data:..."> data URI when possible.
     def repl(match):
         path = match.group(1)
         src = media_sources.get(path, path)
         datauri = None
         try:
-            if Path(src).exists():
+            if src and Path(src).exists():
                 datauri = image_to_data_uri(src)
         except TypeError:
-            # src might be None or not a path-like
             datauri = None
         if datauri:
             return f'<img src="{datauri}">'
-        # fallback: use the basename as before
         filename = Path(path).name
         return f'<img src="{filename}">'
 
@@ -68,13 +61,11 @@ def parse_cards(md):
         block = block.strip()
         if not block:
             continue
-        # Split on first '%'
         parts = re.split(r'\s*%\s*', block, maxsplit=1)
         if len(parts) < 2:
-            continue  # skip if not both delimiters present
+            continue
         front = parts[0].strip()
         back = parts[1].strip()
-        # Split back again at the next '%', if present
         back_parts = re.split(r'\s*%\s*', back, maxsplit=1)
         back = back_parts[0].strip()
         if front and back:
@@ -82,59 +73,63 @@ def parse_cards(md):
     return cards
 
 
-
-def main(md_path, output_apkg, verbose=False, search_all=False):
-    md_path = Path(md_path)
+def find_media_source(md_dir: Path, orig_ref: str, verbose=False):
+    p = Path(orig_ref)
+    if p.is_absolute():
+        if p.exists():
+            return str(p.resolve())
+        return None
+    candidate = (md_dir / p)
+    if candidate.exists():
+        return str(candidate.resolve())
+    basename = p.name
     if verbose:
-        print(f"Reading markdown file: {md_path}")
-    with open(md_path, encoding='utf-8') as f:
-        md = f.read()
+        print(f"Looking up basename '{basename}' under {md_dir}")
+    for f in md_dir.rglob(basename):
+        if f.is_file():
+            if verbose:
+                print(f"Found media for {orig_ref} at {f}")
+            return str(f.resolve())
+    return None
 
-    md = convert_latex(md)
-    cards = parse_cards(md)
-    if verbose:
-        print(f"Found {len(cards)} cards.")
 
-    # If there are no cards, do not produce an .apkg file.
-    if not cards:
+def replace_images_with_basename(md_text: str):
+    def repl(match):
+        path = match.group(1)
+        filename = Path(path).name
+        return f'<img src="{filename}">'
+    return re.sub(r'!\[.*?\]\((.*?)\)', repl, md_text)
+
+
+def process_files(md_files, output_apkg, verbose=False, search_all=False):
+    all_cards = []
+    media_map = {}
+    for md_path in md_files:
+        mdp = Path(md_path)
         if verbose:
-            print(f"No cards found in {md_path}; skipping .apkg creation.")
-        else:
-            print(f"No cards in {md_path}; skipping.")
+            print(f"Processing {mdp}")
+        text = mdp.read_text(encoding='utf-8')
+        text = convert_latex(text)
+        cards = parse_cards(text)
+        md_dir = mdp.parent
+        media_refs = set()
+        for front, back in cards:
+            media_refs |= extract_image_paths(front)
+            media_refs |= extract_image_paths(back)
+        for ref in media_refs:
+            if ref in media_map:
+                continue
+            src = find_media_source(md_dir, ref, verbose=verbose if search_all else False)
+            media_map[ref] = src
+            if src is None and verbose:
+                print(f"Warning: could not find media for reference '{ref}' (searched under {md_dir})")
+        for front, back in cards:
+            front_html = replace_images_with_basename(front)
+            back_html = replace_images_with_basename(back)
+            all_cards.append((front_html, back_html))
+    if not all_cards:
+        print("No cards found; skipping .apkg creation.")
         return
-
-    media_files = {}
-    media_sources = {}
-    all_media = set()
-    for front, back in cards:
-        all_media |= extract_image_paths(front)
-        all_media |= extract_image_paths(back)
-
-    md_dir = md_path.parent
-    for path in all_media:
-        # Resolve image path relative to the markdown file when not absolute
-        orig_ref = path
-        p = Path(path)
-        found = None
-        if p.is_absolute():
-            if p.exists():
-                found = p
-        else:
-            candidate = md_dir / p
-            if candidate.exists():
-                found = candidate
-            else:
-                # Optionally, search recursively by basename in md_dir when requested
-                if search_all:
-                    basename = p.name
-                    matches = list(md_dir.rglob(basename))
-                    if matches:
-                        found = matches[0]
-        media_files[orig_ref] = Path(orig_ref).name
-        media_sources[orig_ref] = str(found) if found else None
-        if verbose and not found:
-            print(f"Warning: Media file not found for reference '{orig_ref}'; attempted relative path and basename search")
-
     model = genanki.Model(
         1607392319,
         'Simple Model',
@@ -142,36 +137,28 @@ def main(md_path, output_apkg, verbose=False, search_all=False):
         templates=[{
             'name': 'Card 1',
             'qfmt': '{{Front}}',
-            'afmt': '{{Back}}',
+            'afmt': '{{FrontSide}}<hr id="answer">{{Back}}',
         }],
     )
-
     deck = genanki.Deck(2059400110, 'My Deck')
-    media_list = []
-
-    for i, (front, back) in enumerate(cards, 1):
-        front_html = replace_images_with_anki(front, media_sources)
-        back_html = replace_images_with_anki(back, media_sources)
+    for front_html, back_html in all_cards:
         deck.add_note(genanki.Note(model=model, fields=[front_html, back_html]))
-        if verbose:
-            print(f"Added card {i}: Front length {len(front_html)}, Back length {len(back_html)}")
-            front_imgs = list(extract_image_paths(front))
-            back_imgs = list(extract_image_paths(back))
-            if front_imgs:
-                print(f"  Images on front: {', '.join(front_imgs)}")
-            if back_imgs:
-                print(f"  Images on back: {', '.join(back_imgs)}")
-
-    for orig_ref, fname in media_files.items():
-        src = media_sources.get(orig_ref)
-        if src and Path(src).exists():
-            media_list.append(src)
+    media_list = []
+    seen_basenames = set()
+    for orig_ref, resolved in media_map.items():
+        if resolved and Path(resolved).exists():
+            b = Path(resolved).name
+            if b in seen_basenames:
+                if verbose:
+                    print(f"Skipping duplicate media basename {b} from {resolved}")
+                continue
+            seen_basenames.add(b)
+            media_list.append(resolved)
             if verbose:
-                print(f"Including media: {src} (referenced as {orig_ref})")
+                print(f"Including media: {resolved} (reference {orig_ref})")
         else:
             if verbose:
-                print(f"Skipping media inclusion for {orig_ref}; source not found")
-
+                print(f"Not including media for {orig_ref} (not found)")
     import tempfile
     tf = tempfile.NamedTemporaryFile(prefix='m2a_', suffix='.apkg', delete=False)
     tf.close()
@@ -180,7 +167,7 @@ def main(md_path, output_apkg, verbose=False, search_all=False):
     if verbose:
         print(f"Deck written to temporary file {local_output}")
     shutil.move(local_output, output_apkg)
-    print(f"Deck moved to {output_apkg}")
+    print(f"Wrote {output_apkg} with {len(all_cards)} cards and {len(media_list)} media files")
 
 
 def process_directory(dir_path, verbose=False, search_all=False):
@@ -193,37 +180,55 @@ def process_directory(dir_path, verbose=False, search_all=False):
         md_iter = sorted(dir_path.glob('*.md'))
         if verbose:
             print(f"Scanning {dir_path} for top-level .md files")
-
     for mdfile in md_iter:
         out_apkg = mdfile.with_suffix('.apkg')
         if verbose:
             print(f"Processing {mdfile} -> {out_apkg}")
-        main(mdfile, out_apkg, verbose=verbose, search_all=search_all)
+        process_files([str(mdfile)], str(out_apkg), verbose=verbose, search_all=search_all)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Convert markdown(s) to an Anki .apkg deck. Supports images and LaTeX.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument('input_md', nargs='?', default=None, help='Input markdown file or directory (default: current dir)')
+    parser.add_argument('output_apkg', nargs='?', help='Output .apkg file (default: derived from input)')
+    parser.add_argument('--dir', action='store_true', help='Treat input as directory (scan for .md files)')
+    parser.add_argument('--all', action='store_true', help='When used with --dir, search recursively for .md files and for image basenames')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    args = parser.parse_args()
+    input_arg = args.input_md
+    if input_arg is None:
+        input_arg = '.' if args.dir else '.'
+    p = Path(input_arg)
+    if args.dir or p.is_dir():
+        if not p.exists():
+            print(f"Error: directory {p} does not exist", file=sys.stderr)
+            sys.exit(1)
+        if args.all:
+            md_files = [str(x) for x in p.rglob('*.md') if x.is_file()]
+        else:
+            md_files = [str(x) for x in p.glob('*.md') if x.is_file()]
+        if not md_files:
+            print(f"No markdown files found in {p}")
+            return
+        if args.output_apkg:
+            output = args.output_apkg
+        else:
+            output = str(p.resolve().name) + '.apkg'
+    else:
+        if not p.exists():
+            print(f"Error: file {p} does not exist", file=sys.stderr)
+            sys.exit(1)
+        md_files = [str(p)]
+        if args.output_apkg:
+            output = args.output_apkg
+        else:
+            base = os.path.splitext(str(p))[0]
+            output = base + '.apkg'
+    process_files(md_files, output, verbose=args.verbose, search_all=args.all)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="Convert markdown with %kk/% delimiters to an Anki .apkg deck. Supports images and LaTeX.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    parser.add_argument('input_md', nargs='?', help='Input markdown file or directory')
-    parser.add_argument('output_apkg', nargs='?', help='Output .apkg file (default: same name as input)')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
-    parser.add_argument('--dir', action='store_true', help='Process a directory of markdown files')
-    parser.add_argument('--all', action='store_true', help='Search recursively for image basenames when paths are missing')
-    args = parser.parse_args()
-
-    if not args.input_md:
-        parser.error('input_md is required (file or directory)')
-
-    if args.dir:
-        process_directory(args.input_md, verbose=args.verbose, search_all=args.all)
-    else:
-        input_md = args.input_md
-        if args.output_apkg:
-            output_apkg = args.output_apkg
-        else:
-            base = os.path.splitext(input_md)[0]
-            output_apkg = base + '.apkg'
-
-        main(input_md, output_apkg, verbose=args.verbose, search_all=args.all)
+    main()
