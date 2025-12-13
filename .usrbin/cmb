@@ -23,7 +23,7 @@ def main():
             md_files = sorted([str(Path(dirpath) / f) for f in filenames if f.endswith('.md')])
             if md_files:
                 folder_name = Path(dirpath).name
-                output_file = str(Path(dirpath) / f"{folder_name}.cmb.md")
+                output_file = str(Path(dirpath) / f"{folder_name}cmb.md")
                 combine_md_files(md_files, output_file)
                 print(f"Combined {len(md_files)} files into {output_file}")
                 count += 1
