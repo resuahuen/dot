@@ -8,6 +8,7 @@ from pathlib import Path
 import base64
 import shutil
 import argparse
+import os
 
 
 def convert_latex(md):
@@ -102,6 +103,13 @@ def find_cfg_root(start_path: Path) -> Path | None:
         if cfg.exists():
             return parent
     return None
+
+
+def find_anx_dirs(root: Path):
+    """Yield directories under root that contain an `anx.cfg` file."""
+    for dirpath, dirnames, filenames in os.walk(str(root)):
+        if 'anx.cfg' in filenames:
+            yield Path(dirpath)
 
 
 def replace_images_with_basename(md_text: str):
@@ -265,6 +273,26 @@ def main():
     if input_arg is None:
         input_arg = '.' if args.dir else '.'
     p = Path(input_arg)
+    # If called with no args at all (just `m2a`), scan cwd recursively for `anx.cfg`
+    # and build an `all.apkg` next to each `anx.cfg` containing all markdown under that tree.
+    no_args_called = len(sys.argv) == 1
+    if no_args_called:
+        root = Path.cwd()
+        found = False
+        for anx_dir in find_anx_dirs(root):
+            found = True
+            md_files = [str(x) for x in anx_dir.rglob('*.md') if x.is_file()]
+            if not md_files:
+                if args.verbose:
+                    print(f"No markdown files under {anx_dir}; skipping")
+                continue
+            out = anx_dir / 'all.apkg'
+            if args.verbose:
+                print(f"Building {out} from markdown under {anx_dir}")
+            process_files(md_files, str(out), verbose=args.verbose, search_all=True, base_root=anx_dir)
+        if not found:
+            print(f"No anx.cfg files found under {root}")
+        return
     if args.dir or p.is_dir():
         if not p.exists():
             print(f"Error: directory {p} does not exist", file=sys.stderr)
