@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""
+collapkg - merge multiple Anki .apkg files into a single collapkg.apkg
+
+Behavior:
+- Searches recursively for `anx.cfg` files. For each directory that contains
+  an `anx.cfg`, it finds all `.apkg` files inside that directory tree and
+  merges them into a single `collapkg.apkg` placed next to the `anx.cfg` file.
+- Deck/subdeck structure is created from the relative path of each .apkg file
+  to the `anx.cfg` directory; path components are joined with `::` to create
+  hierarchical deck names.
+
+Dependencies:
+- Requires `genanki` (install with `pip install genanki`).
+
+Usage:
+  collapkg [root-dir]
+
+If `root-dir` is omitted the current working directory is used.
+"""
+
+import argparse
+import json
+import os
+import shutil
+import sqlite3
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+try:
+    import genanki
+except Exception as e:
+    print("Missing dependency: genanki. Install with: pip install genanki", file=sys.stderr)
+    raise
+
+FIELD_SEP = "\x1f"
+
+
+def find_anx_dirs(root: Path):
+    for dirpath, dirnames, filenames in os.walk(root):
+        if 'anx.cfg' in filenames:
+            yield Path(dirpath)
+
+
+def read_collection_from_apkg(apkg_path: Path, tmpdir: Path):
+    """Extracts collection.anki2 and media mapping from an apkg file into tmpdir.
+    Returns tuple (collection_db_path, media_map, media_files_map)
+    - media_map: dict index->filename
+    - media_files_map: dict filename->bytes
+    """
+    media_map = {}
+    media_files_map = {}
+    collection_db_path = None
+
+    with zipfile.ZipFile(apkg_path, 'r') as z:
+        namelist = z.namelist()
+        # collection.anki2
+        if 'collection.anki2' in namelist:
+            collection_db_path = tmpdir / f'collection_{apkg_path.stem}.anki2'
+            with open(collection_db_path, 'wb') as f:
+                f.write(z.read('collection.anki2'))
+
+        # media mapping: named 'media' commonly
+        if 'media' in namelist:
+            try:
+                media_map = json.loads(z.read('media').decode('utf8'))
+            except Exception:
+                media_map = {}
+        elif 'media.json' in namelist:
+            media_map = json.loads(z.read('media.json').decode('utf8'))
+
+        # read media files (they are named by integer keys in the root)
+        # media_map maps index->filename; the files in the zip are the index strings
+        for idx, fname in list(media_map.items()):
+            if idx in namelist:
+                media_files_map[fname] = z.read(idx)
+        # fallback: sometimes media files are stored with their filenames inside
+        # the archive (rare). Attempt to copy any file not collection/manifest
+        for name in namelist:
+            if name in ('collection.anki2', 'media', 'media.json'):
+                continue
+            # if the name looks like a media filename and not a path
+            if '/' not in name and name not in media_map.values():
+                try:
+                    data = z.read(name)
+                    media_files_map[name] = data
+                except Exception:
+                    pass
+
+    return collection_db_path, media_map, media_files_map
+
+
+def parse_models_from_db(db_path: Path):
+    con = sqlite3.connect(str(db_path))
+    cur = con.cursor()
+    cur.execute('SELECT models, decks FROM col')
+    row = cur.fetchone()
+    models_json = {}
+    decks_json = {}
+    if row:
+        try:
+            models_json = json.loads(row[0]) if row[0] else {}
+        except Exception:
+            models_json = {}
+        try:
+            decks_json = json.loads(row[1]) if row[1] else {}
+        except Exception:
+            decks_json = {}
+    con.close()
+    return models_json, decks_json
+
+
+def get_notes_from_db(db_path: Path):
+    con = sqlite3.connect(str(db_path))
+    cur = con.cursor()
+    cur.execute('SELECT id, guid, mid, flds, tags FROM notes')
+    rows = cur.fetchall()
+    con.close()
+    notes = []
+    for id_, guid, mid, flds, tags in rows:
+        fields = flds.split(FIELD_SEP) if flds is not None else []
+        notes.append({'id': id_, 'guid': guid, 'mid': str(mid), 'fields': fields, 'tags': tags})
+    return notes
+
+
+def model_to_genanki(model_id, model_def):
+    # model_def is the dict used by Anki; we translate to genanki.Model
+    name = model_def.get('name', f'Model {model_id}')
+    flds = model_def.get('flds', [])
+    fields = [{'name': f.get('name', f'Field{i}')} for i, f in enumerate(flds)]
+    css = model_def.get('css', '')
+    tmpls = model_def.get('tmpls', []) or model_def.get('templates', [])
+    templates = []
+    for t in tmpls:
+        templates.append({'name': t.get('name', 'Card'), 'qfmt': t.get('qfmt', ''), 'afmt': t.get('afmt', '')})
+    # Generate a stable model id based on model name and fields
+    # genanki requires numeric model id
+    generated_id = abs(hash(name + json.dumps(fields))) % (2 ** 31 - 1)
+    return genanki.Model(generated_id, name, fields=fields, templates=templates, css=css)
+
+
+def safe_filename(name: str) -> str:
+    return name.replace(os.sep, '_').replace(' ', '_')
+
+
+def merge_apkgs_for_anx_dir(anx_dir: Path):
+    apkg_files = [Path(p) for p in [str(p) for p in anx_dir.rglob('*.apkg')]]
+    if not apkg_files:
+        print(f"No .apkg files found under {anx_dir}, skipping.")
+        return
+
+    print(f"Merging {len(apkg_files)} apkg files under {anx_dir}")
+
+    # Structures to accumulate
+    deck_map = {}  # deck_name -> genanki.Deck
+    model_map = {}  # old_mid_str -> genanki.Model
+    media_paths = []
+
+    tmp_root = Path(tempfile.mkdtemp(prefix='collapkg_'))
+
+    try:
+        for apkg in apkg_files:
+            rel = apkg.parent.relative_to(anx_dir) if apkg.parent != anx_dir else Path()
+            parts = list(rel.parts) + [apkg.stem]
+            # build a deck name from parts (use :: to denote subdecks)
+            deck_name = '::'.join([p for p in parts if p]) or apkg.stem
+
+            # create deck if necessary
+            if deck_name not in deck_map:
+                deck_id = abs(hash(str(anx_dir) + deck_name)) % (2 ** 31 - 1)
+                deck_map[deck_name] = genanki.Deck(deck_id, deck_name)
+
+            tmpdir = tmp_root / f'tmp_{safe_filename(apkg.stem)}'
+            tmpdir.mkdir(parents=True, exist_ok=True)
+
+            collection_db_path, media_map, media_files_map = read_collection_from_apkg(apkg, tmpdir)
+
+            if collection_db_path is None:
+                print(f"Warning: {apkg} did not contain collection.anki2, skipping.")
+                continue
+
+            # parse models and notes
+            models_json, decks_json = parse_models_from_db(collection_db_path)
+            notes = get_notes_from_db(collection_db_path)
+
+            # create genanki models for any models seen
+            for old_mid, mdef in models_json.items():
+                if old_mid not in model_map:
+                    model_map[old_mid] = model_to_genanki(old_mid, mdef)
+
+            # write media files to tmp and prepare replacements
+            prefix = safe_filename(str(apkg.relative_to(anx_dir))).replace('.', '_')
+            filename_replacements = {}
+            for fname, data in media_files_map.items():
+                newname = f"{prefix}__{fname}"
+                outpath = tmp_root / newname
+                with open(outpath, 'wb') as f:
+                    f.write(data)
+                media_paths.append(str(outpath))
+                filename_replacements[fname] = newname
+
+            # add notes to the deck
+            for n in notes:
+                mid = n['mid']
+                if mid not in model_map:
+                    # unknown model: create a simple fallback
+                    fallback = genanki.Model(abs(hash(mid)) % (2 ** 31 - 1), f'Fallback {mid}', fields=[{'name': 'Field1'}], templates=[{'name': 'Card 1', 'qfmt': '{{Field1}}', 'afmt': '{{FrontSide}}'}])
+                    model_map[mid] = fallback
+
+                model = model_map[mid]
+                fields = list(n['fields'])
+                # replace media filenames referenced inside fields with new names
+                for i, fld in enumerate(fields):
+                    if not fld:
+                        continue
+                    for orig, new in filename_replacements.items():
+                        if orig in fld:
+                            fields[i] = fields[i].replace(orig, new)
+
+                tags = n['tags'].split() if n['tags'] else []
+                try:
+                    note = genanki.Note(model=model, fields=fields, tags=tags)
+                except Exception:
+                    # fallback: coerce fields to strings
+                    note = genanki.Note(model=model, fields=[str(x) for x in fields], tags=tags)
+
+                deck_map[deck_name].add_note(note)
+
+        # build package
+        decks = list(deck_map.values())
+        package = genanki.Package(decks)
+        if media_paths:
+            package.media_files = media_paths
+
+        out_file = anx_dir / 'collapkg.apkg'
+        print(f"Writing merged package to {out_file}")
+        package.write_to_file(str(out_file))
+        print("Done.")
+
+    finally:
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Merge multiple Anki .apkg files into collapkg.apkg next to anxious.cfg files.')
+    parser.add_argument('root', nargs='?', default='.', help='root directory to scan (default: current directory)')
+    args = parser.parse_args()
+
+    root = Path(args.root).resolve()
+    if not root.exists():
+        print(f"Root path {root} does not exist", file=sys.stderr)
+        sys.exit(2)
+
+    found = False
+    for anx_dir in find_anx_dirs(root):
+        found = True
+        merge_apkgs_for_anx_dir(anx_dir)
+
+    if not found:
+        print(f"No anx.cfg files found under {root}")
+
+
+if __name__ == '__main__':
+    main()
