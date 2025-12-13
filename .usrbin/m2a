@@ -150,10 +150,11 @@ def process_files(md_files, output_apkg, verbose=False, search_all=False):
         except Exception:
             parts = list(md_dir.parts)
 
-        # include the markdown filename as final component to create per-file decks
+        # create decks per-directory under the anx.cfg root.
+        # Do NOT append the markdown filename so all files in a directory
+        # share the same deck (e.g., 009sem::mos).
         parts = [p for p in parts if p]
-        parts.append(mdp.stem)
-        deck_name = '::'.join(parts) if parts else mdp.stem
+        deck_name = '::'.join(parts) if parts else mdp.parent.stem
         deck_id = abs(hash(str(cfg_root) + deck_name)) % (2 ** 31 - 1)
         if deck_name not in deck_map:
             deck_map[deck_name] = genanki.Deck(deck_id, deck_name)
