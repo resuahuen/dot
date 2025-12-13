@@ -67,6 +67,14 @@ def main(md_path, output_apkg, verbose=False):
     if verbose:
         print(f"Found {len(cards)} cards.")
 
+    # If there are no cards, do not produce an .apkg file.
+    if not cards:
+        if verbose:
+            print(f"No cards found in {md_path}; skipping .apkg creation.")
+        else:
+            print(f"No cards in {md_path}; skipping.")
+        return
+
     media_files = {}
     all_media = set()
     for front, back in cards:
