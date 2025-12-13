@@ -203,6 +203,23 @@ def process_files(md_files, output_apkg, verbose=False, search_all=False, base_r
         print("No cards found; skipping .apkg creation.")
         return
 
+    # If base_root provided, wrap all decks under a top-level deck named after base_root
+    if base_root:
+        top_name = base_root.name
+        new_deck_map: dict[str, genanki.Deck] = {}
+        for old_name, deck in deck_map.items():
+            # avoid double-prefixing
+            if old_name.startswith(top_name + '::'):
+                new_name = old_name
+            else:
+                new_name = f"{top_name}::{old_name}"
+            deck_id = abs(hash(str(base_root) + new_name)) % (2 ** 31 - 1)
+            new_deck_map[new_name] = genanki.Deck(deck_id, new_name)
+            # transfer notes
+            for note in deck.notes:
+                new_deck_map[new_name].add_note(note)
+        deck_map = new_deck_map
+
     # build package with all decks
     decks = list(deck_map.values())
     package = genanki.Package(decks)
