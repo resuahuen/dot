@@ -144,7 +144,7 @@ def process_files(md_files, output_apkg, verbose=False, search_all=False):
         try:
             if cfg_root:
                 rel = md_dir.relative_to(cfg_root)
-                parts = list(rel.parts)
+                parts = [cfg_root.name] + list(rel.parts)
             else:
                 parts = list(md_dir.parts)
         except Exception:
